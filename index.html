@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SneakerOps: pending orders dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root{--bg:#f3f4fa;--card:#fff;--ink:#15171f;--mute:#6b7280;--line:#e6e8f0;--pri:#5b4ef0;--pri2:#ede9ff;--soft:#f6f6fb;--good:#15803d;--goodb:#e3f7ea;--bad:#e11d48;--badb:#fde7ec;--warn:#b45309;--warnb:#fff1dc;--deep:#9f1239;--deepb:#fbdde6;--c1:#e3b341;--c2:#f08a24;--c3:#e5484d;--c4:#8e1b3a;--shadow:0 1px 2px rgba(20,20,60,.04),0 8px 24px rgba(20,20,60,.05);box-sizing:border-box}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1117;--card:#171a23;--ink:#eceef5;--mute:#9aa3b5;--line:#272b38;--pri:#8b80ff;--pri2:#232048;--soft:#1d212c;--good:#4ade80;--goodb:#12301f;--bad:#fb7185;--badb:#3a1620;--warn:#fbbf24;--warnb:#33270f;--deep:#fda4af;--deepb:#41192a;--c1:#e3c35f;--c2:#f5a14d;--c3:#ff7b72;--c4:#ff9aa8;--shadow:none}}
+:root[data-theme="dark"]{--bg:#0f1117;--card:#171a23;--ink:#eceef5;--mute:#9aa3b5;--line:#272b38;--pri:#8b80ff;--pri2:#232048;--soft:#1d212c;--good:#4ade80;--goodb:#12301f;--bad:#fb7185;--badb:#3a1620;--warn:#fbbf24;--warnb:#33270f;--deep:#fda4af;--deepb:#41192a;--c1:#e3c35f;--c2:#f5a14d;--c3:#ff7b72;--c4:#ff9aa8;--shadow:none}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 Inter,system-ui,sans-serif;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+button,input,select{font:inherit;color:var(--ink)}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
+.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+.side{background:var(--card);border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;gap:20px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:10px;font-size:17px;padding:0 6px}
+.logo{width:34px;height:34px;border-radius:10px;background:var(--pri);color:#fff;display:grid;place-items:center;font-weight:700}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;color:var(--mute);text-decoration:none;font-weight:500}
+.nav a i{font-style:normal;width:18px;text-align:center}
+.nav a:hover{background:var(--soft)}
+.nav a.on{background:var(--soft);color:var(--ink);font-weight:600}
+.nav a.on i{color:var(--pri)}
+.nav .badge{margin-left:auto;background:var(--badb);color:var(--bad);border-radius:8px;padding:1px 7px;font-size:12px;font-weight:600}
+.syncbox{margin-top:auto;background:var(--soft);border-radius:14px;padding:12px 14px;display:grid;gap:8px}
+.syncbox .row{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--mute)}
+.syncbox .row b{color:var(--ink);font-weight:600}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--warn)}
+.dot.live{background:var(--good)}.dot.err{background:var(--bad)}
+.main{min-width:0}
+.top{display:flex;align-items:center;gap:10px;padding:12px 26px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:5}
+.crumb{font-weight:600;margin-right:auto}
+.search{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:12px;padding:0 12px;background:var(--card);width:min(340px,38vw)}
+.search input{border:0;background:none;padding:9px 0;width:100%;outline:none}
+.btn,.chip-btn,.icon-btn{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:9px 14px;font-weight:600}
+.btn.pri{background:var(--pri);color:#fff;border-color:var(--pri)}
+.btn.soft{background:var(--soft);border-color:transparent}
+.btn[disabled]{opacity:.6;cursor:progress}
+.icon-btn{padding:9px 12px}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;margin-right:8px;vertical-align:-2px;animation:r .8s linear infinite}
+@keyframes r{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.5s}}
+#page{padding:26px;max-width:1320px}
+.banner{border-radius:14px;padding:12px 16px;margin-bottom:16px;display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.banner.warn{background:var(--warnb);color:var(--warn)}.banner.bad{background:var(--badb);color:var(--bad)}.banner.good{background:var(--goodb);color:var(--good)}
+.banner b{font-weight:600}
+.hello{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:flex-end;margin-bottom:18px}
+.hello h1{margin:0;font-size:26px;letter-spacing:-.02em}
+.hello p{margin:2px 0 0;color:var(--mute)}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:14px}
+.card{background:var(--card);border-radius:18px;padding:16px 18px;box-shadow:var(--shadow);border:1px solid var(--line)}
+.k-h{display:flex;align-items:center;gap:8px;color:var(--mute);font-weight:500;margin-bottom:10px}
+.k-b{background:var(--soft);border-radius:12px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.k-b b{font-size:26px;letter-spacing:-.02em}
+.pill{border-radius:8px;padding:3px 8px;font-size:12px;font-weight:600;white-space:nowrap;display:inline-block}
+.good{background:var(--goodb);color:var(--good)}.bad{background:var(--badb);color:var(--bad)}.warn{background:var(--warnb);color:var(--warn)}.deep{background:var(--deepb);color:var(--deep)}.info{background:var(--pri2);color:var(--pri)}
+.g3{display:grid;gap:14px;margin-bottom:14px}
+.r1{grid-template-columns:1.6fr 1fr 1fr}.r2{grid-template-columns:1fr 1.2fr 1fr}
+.card h2{margin:0;font-size:16px}
+.sub{color:var(--mute);font-size:13px;margin:2px 0 10px}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.link{color:var(--pri);font-weight:600;text-decoration:none;background:none;border:0;padding:0}
+.seg{display:inline-flex;background:var(--soft);border-radius:10px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:none;border-radius:8px;padding:5px 11px;color:var(--mute);font-weight:600;font-size:13px}
+.seg button[aria-selected="true"],.seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.seg .n{margin-left:6px;font-size:11px;background:var(--pri2);color:var(--pri);border-radius:6px;padding:0 5px}
+svg{display:block;width:100%;height:auto}
+.axis{fill:var(--mute);font-size:11px}
+[data-tip]{cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:10px;font-size:12px;color:var(--mute)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+.legend span{cursor:pointer}
+.legend span:hover{color:var(--ink)}
+.donutwrap{display:grid;place-items:center;position:relative}
+.donutc{position:absolute;text-align:center;pointer-events:none;max-width:110px}
+.donutc b{display:block;font-size:22px}.donutc small{color:var(--mute);font-size:11px}
+.sheet-card{background:var(--soft);border-radius:14px;padding:12px 14px;margin-bottom:10px;width:100%;text-align:left;border:0}
+.sheet-card .t{font-weight:600;font-size:13px}
+.sheet-card .big{font-size:22px;font-weight:700;margin:2px 0}
+.sheet-card .m{display:flex;justify-content:space-between;color:var(--mute);font-size:12px}
+.prog{height:6px;border-radius:6px;background:var(--line);margin:6px 0;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--pri);border-radius:6px}
+.hb{display:grid;grid-template-columns:minmax(90px,36%) 1fr auto;gap:8px;align-items:center;padding:5px 6px;border-radius:8px;font-size:13px;cursor:pointer;border:0;background:none;width:100%;text-align:left}
+.hb:hover{background:var(--soft)}
+.hb .t{height:14px;background:var(--soft);border-radius:6px;overflow:hidden}.hb .t i{display:block;height:100%;border-radius:6px;background:var(--pri)}
+.hb .l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb em{font-style:normal;font-weight:600;white-space:nowrap}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{color:var(--mute);font-weight:500;text-align:left;padding:8px 10px;background:var(--soft);white-space:nowrap}
+th:first-child{border-radius:10px 0 0 10px}th:last-child{border-radius:0 10px 10px 0}
+th.s{cursor:pointer}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border:0}
+td small{display:block;color:var(--mute)}
+.num{text-align:right;white-space:nowrap}
+.scroll{overflow-x:auto}
+.note{color:var(--mute);font-size:12px;max-width:34ch}
+.ins{display:flex;gap:10px;background:var(--soft);border-radius:14px;padding:12px;margin-bottom:10px}
+.ins span{font-size:18px}.ins b{display:block;font-size:13px}.ins small{color:var(--mute);font-size:12px}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+.filters button{border:1px solid var(--line);background:var(--card);border-radius:20px;padding:6px 14px}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.field{display:grid;gap:6px;margin-bottom:14px}
+.field label{font-weight:600}
+.field input[type=text],.field input[type=password],.field select{padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.field small{color:var(--mute)}
+.chk{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:var(--soft);border-radius:12px;margin-bottom:8px}
+.chk input{margin-top:3px}
+.steps{margin:0;padding-left:18px;color:var(--mute)}.steps li{margin:6px 0}.steps b{color:var(--ink)}
+code{background:var(--soft);border-radius:6px;padding:1px 6px;font-size:12px}
+.foot{margin-top:16px;color:var(--mute);font-size:12px;border:1px dashed var(--line);border-radius:12px;padding:12px 14px}
+#tip{position:fixed;z-index:50;pointer-events:none;background:var(--ink);color:var(--bg);padding:6px 10px;border-radius:8px;font-size:12px;font-weight:600;display:none;max-width:260px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;z-index:60;display:none}
+.empty{padding:24px;text-align:center;color:var(--mute)}
+@media (max-width:1100px){.r1,.r2{grid-template-columns:1fr 1fr}}
+@media (max-width:860px){.app{grid-template-columns:1fr}.side{position:static;height:auto;flex-direction:row;align-items:center;gap:10px;padding:10px 14px;overflow-x:auto}.nav{flex-direction:row}.syncbox{display:none}.r1,.r2{grid-template-columns:1fr}#page{padding:16px}.top{padding:10px 14px;flex-wrap:wrap}.search{width:100%;order:9}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><span class="logo">S</span><b>SneakerOps</b></div>
+    <nav class="nav" aria-label="Main" id="nav">
+      <a href="#overview" data-nav="overview"><i>▦</i>Overview</a>
+      <a href="#orders" data-nav="orders"><i>☰</i>Pending orders</a>
+      <a href="#sheets" data-nav="sheets"><i>▤</i>Sheets</a>
+      <a href="#checks" data-nav="checks"><i>⚑</i>Data checks<span class="badge" id="chkBadge"></span></a>
+      <a href="#settings" data-nav="settings"><i>⚙</i>Settings</a>
+    </nav>
+    <div class="syncbox" aria-live="polite">
+      <div class="row"><span><span class="dot" id="dot"></span><b id="modeTxt">Snapshot</b></span><span id="srcTxt"></span></div>
+      <div class="row"><span>Last sync</span><b id="lastTxt">never</b></div>
+      <div class="row"><span>Next auto sync</span><b id="nextTxt">-</b></div>
+      <button class="btn pri js-sync" type="button">Sync now</button>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="top">
+      <span class="crumb" id="crumb">Overview</span>
+      <label class="search"><span aria-hidden="true">⌕</span><input id="gq" type="search" placeholder="Search product, order no. or tracking" aria-label="Search"></label>
+      <button class="btn pri js-sync" type="button" id="topSync">Sync now</button>
+      <button class="icon-btn" id="themeBtn" type="button" aria-label="Switch light or dark">◐</button>
+    </header>
+    <main id="page"></main>
+  </div>
+</div>
+<div id="tip" role="tooltip"></div>
+<div id="toast" role="status"></div>
+<script>
+(function () {
+'use strict';
+/* =====================================================================
+   1. SETTINGS YOU MAY WANT TO EDIT
+   ===================================================================== */
+var MIN_AGE = 30;            // pending = order is older than this many days
+var DEFAULT_INTERVAL = 10;   // auto sync, in minutes
+var DEFAULT_KEY = "";         // optional: paste your Google API key between the quotes so every device uses it without typing
+var SNAP = {"asOf":"2026-10-31","rows":[{"sheet":"GURKIRAT X JACK","row":"#CDC19","product":"Coach Caitlin Shoulder Bag With Quilting, glazed leather Silver Maple","size":"OS","date":"2026-09-14","amount":19200,"cur":"INR","orderNo":"WUP03338431","tracking":"","status":"Yes, not DELIVERED","note":"No barcode, tracking or delivery date","n":1,"swipe":false,"canTrack":true},{"sheet":"GURKIRAT X JACK","row":"#CDC21","product":"Coach Emily Shoulder Bag, signature canvas Gold Walnut Black","size":"OS","date":"2026-09-14","amount":19200,"cur":"INR","orderNo":"WUP03338431","tracking":"","status":"Yes, not DELIVERED","note":"Same SKU as #CDC20 on the same order. Possible double order","n":1,"swipe":false,"canTrack":true},{"sheet":"GURKIRAT X JACK","row":"#CDC29","product":"Coach Emily Shoulder Bag, signature canvas Gold Walnut Black","size":"OS","date":"2026-09-16","amount":19200,"cur":"INR","orderNo":"WUP03354872","tracking":"","status":"Yes, not DELIVERED","note":"Third unit of this SKU. Possible double order","n":1,"swipe":false,"canTrack":true},{"sheet":"GURKIRAT X JACK","row":"#CDC31","product":"Coach Medium Corner Zip Wallet, signature canvas Gold Sand Chalk","size":"OS","date":"2026-09-17","amount":9485,"cur":"INR","orderNo":"WUP03378807","tracking":"","status":"Yes, not DELIVERED","note":"","n":1,"swipe":false,"canTrack":true},{"sheet":"GURKIRAT X JACK","row":"#CDC34","product":"Coach Station Tote Bag, signature canvas Gold Tan Brown","size":"OS","date":"2026-09-17","amount":23800,"cur":"INR","orderNo":"WUP03378807","tracking":"","status":"Yes, not DELIVERED","note":"","n":1,"swipe":false,"canTrack":true},{"sheet":"GURKIRAT X JACK","row":"#CDC57","product":"Coach Station Tote Bag, signature canvas Gold Walnut Black","size":"OS","date":"2026-09-25","amount":23600,"cur":"INR","orderNo":"WUP03547217","tracking":"","status":"Yes, not DELIVERED","note":"","n":1,"swipe":false,"canTrack":true},{"sheet":"GURKIRAT X JACK","row":"#CDC59","product":"Coach Plaza Bag 18, coated canvas Brass Maple","size":"OS","date":"2026-09-26","amount":11700,"cur":"INR","orderNo":"WUP03556561","tracking":"","status":"Yes, not DELIVERED","note":"","n":1,"swipe":false,"canTrack":true},{"sheet":"GURKIRAT X JACK","row":"#CDC60","product":"On The Roger Advantage Pro All White","size":"UK 10","date":"2026-09-28","amount":18200,"cur":"INR","orderNo":"","tracking":"","status":"Yes, not DELIVERED","note":"No order number recorded","n":1,"swipe":false,"canTrack":true},{"sheet":"GURKIRAT X JACK","row":"#CDC61","product":"Coach Nolita 19, signature canvas Gold Walnut Black","size":"OS","date":"2026-09-28","amount":14500,"cur":"INR","orderNo":"WUP03556561","tracking":"","status":"Yes, not DELIVERED","note":"","n":1,"swipe":false,"canTrack":true},{"sheet":"GURKIRAT X JACK","row":"#CDC65","product":"Coach Teri Shoulder Bag, signature canvas Gold Walnut Black","size":"OS","date":"2026-09-29","amount":25300,"cur":"INR","orderNo":"WUP03619389","tracking":"","status":"Yes, not DELIVERED","note":"","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE","row":"Row 244","product":"Nike Zoom Field Jaxx Travis Scott Leche Blue (StockX)","size":"","date":"2026-08-01","amount":0,"cur":"MIX","orderNo":"","tracking":"","status":"not yet shipped","note":"No order number and no amount entered","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE","row":"Row 276","product":"Fitbit band (Walmart)","size":"","date":"2026-08-05","amount":11077,"cur":"INR","orderNo":"200015260642280","tracking":"","status":"No tracking, no barcode","note":"No tracking after 87 days","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE","row":"Row 475","product":"BE@RBRICK Tom and Jerry Tom Flocky 100% and 400% Set Grey","size":"","date":"2026-09-16","amount":11359,"cur":"INR","orderNo":"683763181","tracking":"ECGGHXX021317266","status":"No barcode","note":"Has tracking. Check with GOAT Hong Kong","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE","row":"Row 505","product":"Dashawn Jordan x Nike Dunk Low SB Copperhead","size":"","date":"2026-09-21","amount":13977,"cur":"INR","orderNo":"379660989","tracking":"1475711742","status":"No barcode","note":"Has tracking. Check with GOAT Hong Kong","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE","row":"Row 550","product":"UGG Scuffette II Chestnut (GOAT)","size":"","date":"2026-09-29","amount":0,"cur":"MIX","orderNo":"","tracking":"","status":"not yet shipped","note":"No order number and no amount entered","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Rows 2, 3","product":"New Balance 530 White Silver Navy","size":"UK 6","date":"2026-09-15","amount":12944,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"2 rows, identical, amount is the total. Duplicate or 2 pairs?","n":2,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Rows 4, 5","product":"New Balance 530 White Silver Navy","size":"UK 7","date":"2026-09-15","amount":13464,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"2 rows, identical, amount is the total. Duplicate or 2 pairs?","n":2,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Rows 6, 7","product":"New Balance 530 White Silver Navy","size":"UK 8","date":"2026-09-15","amount":13984,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"2 rows, identical, amount is the total. Second row has no description","n":2,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Row 11","product":"ASICS Novablast 5 CP Dusk Till Dawn","size":"UK 9","date":"2026-09-15","amount":14810,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Row 12","product":"ASICS Novablast 5 CP Dusk Till Dawn","size":"UK 10","date":"2026-09-15","amount":14826,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Row 13","product":"ASICS Novablast 5 CP Dusk Till Dawn","size":"UK 8.5","date":"2026-09-15","amount":12623,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Row 16","product":"ASICS Superblast 3 Cobalt Burst Light Orange","size":"UK 9","date":"2026-09-16","amount":22782,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Row 17","product":"New Balance 9060 Vintage Indigo","size":"UK 4.5","date":"2026-09-16","amount":8660,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Row 19","product":"Nike Vomero Premium White Bright Crimson","size":"UK 8","date":"2026-09-16","amount":20915,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Row 23","product":"adidas Adizero Adios Pro 3 Solar Red","size":"UK 10","date":"2026-09-17","amount":14994,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Rows 24, 25","product":"Li-Ning Shadow 3 Essential White Teal","size":"UK 8","date":"2026-09-17","amount":10832,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"2 rows, identical, amount is the total","n":2,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Row 26","product":"New Balance 1000 Reflective Black Multi-Color","size":"UK 5.5","date":"2026-09-17","amount":8706,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Row 27","product":"New Balance 1000 Reflective Black Multi-Color","size":"UK 7","date":"2026-09-17","amount":7268,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Row 28","product":"New Balance 1906R White Metallic Gold","size":"UK 7","date":"2026-09-17","amount":10649,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Row 29","product":"New Balance 9060 Vintage Indigo","size":"UK 8.5","date":"2026-09-17","amount":10496,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Row 30","product":"Nike Air Zoom Alphafly Next% 3 Bright Crimson Lime Blast","size":"UK 7","date":"2026-09-17","amount":16203,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Row 32","product":"Onitsuka Tiger Mexico 66 Cream Black Gold","size":"UK 4.5","date":"2026-09-17","amount":14306,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"","n":1,"swipe":true,"canTrack":true},{"sheet":"CDC X ZENTRA › SWIPE1","row":"Row 33","product":"ASICS Superblast 3 Cobalt Burst Light Orange","size":"UK 6","date":"2026-09-18","amount":18345,"cur":"INR","orderNo":"","tracking":"","status":"No tracking, no barcode","note":"","n":1,"swipe":true,"canTrack":true},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4155","product":"Li-Ning Shadow 3 Essential Beige Grey","size":"UK 8 / EU 42","date":"2026-08-21","amount":6705,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4362","product":"adidas AE 1 Silver Metallic","size":"UK 8.5","date":"2026-09-10","amount":8672,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4372","product":"Jordan Tatum 3 Sidewalk Chalk","size":"UK 10 / EU 45","date":"2026-09-11","amount":8486,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"Same shoe and size as S.no 4460","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4376","product":"adidas Adizero Evo SL Woven Ekiden Solar Blue Silver","size":"UK 7","date":"2026-09-12","amount":12826,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4399","product":"Jordan Tatum 2 Lemonade","size":"UK 7 / EU 41","date":"2026-09-14","amount":8951,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4426","product":"adidas XLG Runner Deluxe White Red","size":"UK 9.5 / EU 44","date":"2026-09-17","amount":14996,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4460","product":"Jordan Tatum 3 Sidewalk Chalk","size":"UK 10 / EU 45","date":"2026-09-21","amount":8471,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"Same shoe and size as S.no 4372","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4471","product":"adidas AE 1 Georgia Bulldogs","size":"UK 10","date":"2026-09-22","amount":10362,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4478","product":"Nike Ja 3 Kool-Aid","size":"UK 8 / EU 42.5","date":"2026-09-22","amount":12051,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4482","product":"ANTA C202 7 Unusual Pink","size":"UK 8 / EU 42.5","date":"2026-09-23","amount":8688,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4495","product":"Jordan 1 Low SE Cozy Girl (W)","size":"UK 5 / EU 38.5","date":"2026-09-24","amount":10703,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4496","product":"Jordan 1 Retro Low OG Laser Black University Red","size":"UK 10 / EU 45","date":"2026-09-24","amount":11447,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4497","product":"Nike 24.7 Black Anthracite","size":"UK 8 / EU 42.5","date":"2026-09-24","amount":11617,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4512","product":"adidas Samba OG Black Wonder White (W)","size":"UK 6","date":"2026-09-26","amount":8440,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4515","product":"New Balance 204L Black Magnet","size":"UK 5.5 / EU 38.5","date":"2026-09-26","amount":7665,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4516","product":"Nike P-6000 Premium Vast Grey Fir","size":"UK 6 / EU 40","date":"2026-09-26","amount":9525,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4519","product":"adidas AE 1 Low Ascent Pack MX Grey","size":"UK 10","date":"2026-09-28","amount":8502,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4523","product":"Anta Kai 2 Sun","size":"UK 11 / EU 46","date":"2026-09-28","amount":8176,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › SWIPE","row":"S.no 4537","product":"Saucony Cradle 3 Slide Fluorescent Green","size":"UK 5.5 / EU 39","date":"2026-09-29","amount":5650,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"","n":1,"swipe":true,"canTrack":false},{"sheet":"SAMEER X JACK › OLD","row":"S.no 1935","product":"Nike V2K Run Platinum Violet (W)","size":"UK 6.5 / EU 40.5","date":"2025-11-29","amount":8248,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"Order from last year, 337 days","n":1,"swipe":true,"canTrack":false},{"sheet":"SHIVIL X JACK › SWIPE","row":"S.no 14308 to 14472","product":"On Running Cloud 6 All Black, 28 Sep batch: UK 7 x10, UK 8 x10, UK 8.5 x10, UK 9 x3, UK 9.5 x10","size":"UK 7 to 9.5","date":"2026-09-28","amount":567600,"cur":"INR","orderNo":"","tracking":"","status":"Order status Yes, no barcode","note":"43 pairs at ₹13,200 each","n":43,"swipe":true,"canTrack":true},{"sheet":"SHIVIL X JACK › SWIPE","row":"S.no 14505 (17 rows)","product":"On Running Cloud 6 All Black, 30 Sep batch: UK 10 x3, UK 10.5 x6, UK 11 x3, UK 12 x5","size":"UK 10 to 12","date":"2026-09-30","amount":224400,"cur":"INR","orderNo":"","tracking":"","status":"Order status Yes, no barcode","note":"17 pairs at ₹13,200 each. All 17 rows share S.no 14505, so they cannot be told apart in the sheet","n":17,"swipe":true,"canTrack":true},{"sheet":"SHIVIL X JACK › SWIPE","row":"37 rows","product":"37 other shoes with order status Yes, including Zoom Fly 6, Adios Pro 4, Timberland boots, Vomero Plus and Alphafly","size":"","date":"2026-09-14","amount":0,"cur":"MIX","orderNo":"","tracking":"","status":"Order status Yes, no barcode","note":"Amounts are in yuan, ¥31,954 in total, so no rupee total is shown. Dates run 14 to 30 Sep. Full list is in the AGEING_CHECK tab of SHIVIL X JACK, from cell A200","n":37,"swipe":true,"canTrack":true},{"sheet":"SHIVIL X JACK › SWIPE","row":"9 rows","product":"9 orders on HOLD: Yeezy Foam Runner, Brooks Adrenaline GTS 10, Salomon XT-6, 3 makeup items, On Cloudtilt, Adios Pro 4, GT Future Swooshman","size":"","date":"2026-07-23","amount":0,"cur":"MIX","orderNo":"","tracking":"","status":"HOLD, no barcode","note":"Dates run 23 Jul to 15 Sep. Amounts are in mixed currencies, see the sheet","n":9,"swipe":true,"canTrack":true},{"sheet":"NEHAL X JACK › ON ORDERS","row":"S.no 655","product":"On Running Cloudtilt Loewe All White","size":"UK 13.5","date":"2025-12-11","amount":51671,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"No delivery status and no order status","n":1,"swipe":false,"canTrack":false},{"sheet":"NEHAL X JACK › ON ORDERS","row":"S.no 656","product":"On Running Cloudtilt Loewe All Black","size":"UK 12.5","date":"2025-12-11","amount":51755,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"No delivery status and no order status","n":1,"swipe":false,"canTrack":false},{"sheet":"SAARTHAK X JACK › Sheet1","row":"121 rows","product":"121 orders with no barcode and no status","size":"","date":"2026-01-05","amount":3131992,"cur":"INR","orderNo":"","tracking":"","status":"Status blank, no barcode","note":"Oldest order 5 Jan 2026, newest 5 May 2026. Includes 10 WHOOP MG, 4 Virgil Abloh AJ1 Alaska at about ₹64,000 to ₹71,000 each, and a ₹1,49,440 Louis Vuitton trainer. Full list is in the AGEING_CHECK tab of SAARTHAK X JACK, columns N to S","n":121,"swipe":false,"canTrack":false},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 13","product":"Loewe x Oncloudsolo Red/White","size":"EU 42","date":"2026-05-08","amount":65000,"cur":"INR","orderNo":"","tracking":"","status":"In Transit","note":"No tracking. Closed with Shaurya","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 15","product":"Loewe x Oncloudsolo Black/White","size":"EU 43","date":"2026-05-14","amount":65000,"cur":"INR","orderNo":"","tracking":"","status":"In Transit","note":"No tracking. Closed with Shaurya","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 16","product":"Loewe x Oncloudsolo Black/White","size":"EU 44","date":"2026-05-14","amount":65000,"cur":"INR","orderNo":"","tracking":"","status":"Not started","note":"Closed with Shaurya","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 17","product":"Loewe x Oncloudsolo Black/White","size":"EU 45","date":"2026-05-14","amount":65000,"cur":"INR","orderNo":"","tracking":"","status":"Not started","note":"Closed with Shaurya","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 23","product":"Loewe x Oncloudsolo Sand/Burgundy","size":"EU 46","date":"2026-05-14","amount":65000,"cur":"INR","orderNo":"","tracking":"","status":"Not started","note":"Closed with Shaurya","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 24","product":"Loewe x On Cloudmonster","size":"EU 42","date":"2026-05-14","amount":87000,"cur":"INR","orderNo":"","tracking":"","status":"In Transit","note":"No tracking. Closed with Bharat","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 25","product":"Loewe x On Cloudmonster","size":"EU 43","date":"2026-05-14","amount":87000,"cur":"INR","orderNo":"","tracking":"","status":"In Transit","note":"No tracking. Closed with Bharat","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 42","product":"Polene Numero Neuf Mini Textured Blush","size":"OS","date":"2026-05-30","amount":54500,"cur":"INR","orderNo":"","tracking":"","status":"In Transit","note":"No tracking. Closed with Anubhav","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 47","product":"Polene Neiti Edition Duo Chalk","size":"OS","date":"2026-06-03","amount":37500,"cur":"INR","orderNo":"","tracking":"","status":"In Transit","note":"No tracking. Closed with Anubhav","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 48","product":"Givenchy Logo Print Canvas Slides","size":"EU 37","date":"2026-06-06","amount":31000,"cur":"INR","orderNo":"","tracking":"","status":"Not started","note":"Closed with Bharat","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 49","product":"Givenchy Logo Print Canvas Slides","size":"EU 38","date":"2026-06-06","amount":31000,"cur":"INR","orderNo":"","tracking":"","status":"Not started","note":"Closed with Bharat","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 50","product":"Hermes Orans Rose Cancan","size":"EU 37","date":"2026-06-07","amount":73500,"cur":"INR","orderNo":"","tracking":"","status":"In Transit","note":"No tracking. Closed with Sunny","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 54","product":"On Running Cloudsolo Loewe Beige","size":"EU 36","date":"2026-06-18","amount":65000,"cur":"INR","orderNo":"","tracking":"","status":"Not started","note":"Closed with Anubhav","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 55","product":"On Running Cloudsolo Loewe Teal Eggshell","size":"EU 43","date":"2026-06-18","amount":65000,"cur":"INR","orderNo":"","tracking":"","status":"Not started","note":"Closed with Anubhav","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 56","product":"Polene Cyme Edition Textured Cognac","size":"OS","date":"2026-06-18","amount":57000,"cur":"INR","orderNo":"","tracking":"","status":"In Transit","note":"No tracking. Closed with Anubhav","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 57","product":"On Running Cloudsolo Loewe White","size":"EU 43","date":"2026-06-23","amount":63000,"cur":"INR","orderNo":"","tracking":"","status":"In Transit","note":"No tracking. Closed with Bharat","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Rows 58, 59","product":"Longchamp Le Pliage Original L Tote Navy","size":"L","date":"2026-06-27","amount":33000,"cur":"INR","orderNo":"","tracking":"","status":"Not started","note":"2 rows, identical, amount is the total. Closed with Anubhav","n":2,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 60","product":"Polene Cyme Mini Edition Textured Root","size":"OS","date":"2026-06-27","amount":53000,"cur":"INR","orderNo":"","tracking":"","status":"Not started","note":"Closed with Anubhav","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Rows 61 to 70","product":"Casablanca shirts, 10 pieces (9 In Transit, 1 Not started)","size":"S to XL","date":"2026-06-28","amount":0,"cur":"MIX","orderNo":"","tracking":"","status":"In Transit / Not started","note":"No price entered. Closed with Sunny. Row 65 is the one not started","n":10,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Row 71","product":"Longchamp Le Pliage Original L Tote Paper","size":"L","date":"2026-07-07","amount":16500,"cur":"INR","orderNo":"","tracking":"","status":"Not started","note":"Closed with Anubhav","n":1,"swipe":false,"canTrack":true},{"sheet":"CDC X RUPESH (CASHOUT)","row":"Rows 72, 73","product":"Polene Cyme Edition Textured Cognac","size":"OS","date":"2026-07-09","amount":118000,"cur":"INR","orderNo":"","tracking":"","status":"Not started","note":"2 rows, identical, amount is the total. Closed with Anubhav","n":2,"swipe":false,"canTrack":true},{"sheet":"AKSHAT X JACK","row":"Rows 2 to 19","product":"Alo Yoga, 18 items: tanks, caps, hats, leggings, a jacket, a crewneck and a skirt","size":"XS to ONE SIZE","date":"2026-07-31","amount":159000,"cur":"INR","orderNo":"","tracking":"","status":"Status blank","note":"No status, order number, tracking or barcode on any of the 18 rows","n":18,"swipe":false,"canTrack":false},{"sheet":"ZHUXJACK","row":"S.no 1 to 10","product":"Zhu order of 1 Jul: Adios Pro 4 x2, Harden Vol. 8, Zoom Freak 6, NB 530, Jordan 1 Low, Timberland x2, Vomero 5, Rival Fly 4","size":"","date":"2026-07-01","amount":118076,"cur":"INR","orderNo":"","tracking":"","status":"Status blank","note":"No barcode or status. Amount is the final amount for us, in INR","n":10,"swipe":false,"canTrack":false},{"sheet":"SHIVIL X JACK › OLD SHEET","row":"12 rows","product":"12 orders from Feb and Mar 2025 with no barcode and no note: AF1 Mid Off-White, Cloud X 3, AF1 Low Ambush, Sambae x2, Jordan 6 Travis Scott x2, Roger Pro 2, Yeezy 350 V2, Gucci Gazelle x2, NB 9060","size":"","date":"2025-02-11","amount":319055,"cur":"INR","orderNo":"","tracking":"","status":"No barcode, no note","note":"These are the most likely to be genuinely missing. Dates run 11 Feb to 19 Mar 2025","n":12,"swipe":false,"canTrack":false},{"sheet":"SHIVIL X JACK › OLD SHEET","row":"19 rows","product":"19 orders from Mar and Apr 2025 with no barcode, marked DONE, ON SNF or STO GURKI USV","size":"","date":"2025-03-12","amount":475030,"cur":"INR","orderNo":"","tracking":"","status":"No barcode, noted DONE","note":"Probably closed out by hand, but they never got a barcode. Check a few","n":19,"swipe":false,"canTrack":false},{"sheet":"SHIVIL X JACK › OLD SHEET","row":"Yeezy 350 Static Black","product":"adidas Yeezy 350 Static Black (REF)","size":"UK 9","date":"2025-03-29","amount":45250,"cur":"INR","orderNo":"","tracking":"","status":"NOT PAID BY CDC","note":"Note says checked by Sunny","n":1,"swipe":false,"canTrack":false}]};
+
+// One entry per sheet tab. Columns are letters. `expect` warns you if a column moves.
+// cur: "INR" = rupees, "MIX" = yuan or rupees mixed (shown, not added to totals).
+var SOURCES = [
+  { name: "SHIVIL X JACK", id: "12pTuZGQblboa_qhJge82iE0ZnpN5tVfFlJfL_URpkYA", tab: "SWIPE", firstRow: 2, cur: "MIX", dateOrder: "dmy",
+    cols: { product: "G", size: "H", date: "F", barcode: "D", amount: "I", orderNo: "S", tracking: "R" }, doneCols: ["B", "L"],
+    expect: { B: "delivery status", D: "barcode", F: "date", G: "shoe" }, note: "Amount is in yuan or rupees, see the sheet." },
+  { name: "CDC X ZENTRA", id: "1qtroH404jZ1KNnOEshHH6jC8iz46HlYZ1QXpZE9ic8o", tab: "SWIPE", firstRow: 2, cur: "INR", dateOrder: "mdy",
+    cols: { product: "M", size: "N", date: "L", barcode: "W", amount: "V", orderNo: "H", tracking: "J" }, doneCols: ["J"], expect: { L: "date", W: "barcode" } },
+  { name: "CDC X ZENTRA", id: "1qtroH404jZ1KNnOEshHH6jC8iz46HlYZ1QXpZE9ic8o", tab: "SWIPE1", firstRow: 2, cur: "INR", dateOrder: "dmy",
+    cols: { product: "B", size: "M", date: "K", barcode: "U", amount: "F", orderNo: "G", tracking: "I" }, doneCols: ["I"], expect: { U: "barcode" } },
+  { name: "SAMEER X JACK", id: "1_IMNTCbwbIx1jsMoot8N9aSpPo7HU-fQtBF2d_vM0f8", tab: "SWIPE", firstRow: 2, cur: "INR", dateOrder: "dmy",
+    cols: { product: "G", size: "H", date: "F", barcode: "C", amount: "K", orderNo: "A" }, doneCols: ["N"], expect: { C: "barcode", F: "date" } },
+  { name: "SAMEER X JACK", id: "1_IMNTCbwbIx1jsMoot8N9aSpPo7HU-fQtBF2d_vM0f8", tab: "OLD", firstRow: 2, cur: "INR", dateOrder: "dmy",
+    cols: { product: "G", size: "H", date: "F", barcode: "C", amount: "K", orderNo: "A" }, doneCols: ["N"], expect: { C: "barcode", F: "date" } },
+  { name: "DYPE X JACK", id: "11FceFtCblaYjdO4RsatlSzTSYmZfb4rgDjKMYGA-Hww", tab: "SWIPE", firstRow: 2, cur: "INR", dateOrder: "dmy",
+    cols: { product: "G", size: "H", date: "F", barcode: "D", amount: "J", orderNo: "A" }, doneCols: ["L"], expect: { D: "barcode", F: "date" } },
+  { name: "CDC Swipe", id: "1WUA044CkMmJ5NzClHnWRYiQID0NNiJr5mdOqLynD6CY", tab: "SWIPE INFO", firstRow: 2, cur: "INR", dateOrder: "dmy",
+    cols: { product: "B", date: "A", barcode: "R", amount: "H", orderNo: "I", tracking: "K" }, doneCols: ["K", "I", "C"] },
+  // Other tabs, read earlier with an older filter. Switched on from Settings, "Include other tabs".
+  { name: "SAARTHAK X JACK", id: "10PWj5FIVrSBb-ZFvs1pxxAqfpLUpBjKz9VcV2OrEFUs", tab: "Sheet1", firstRow: 2, extra: true, cur: "INR", dateOrder: "dmy",
+    cols: { product: "F", size: "G", date: "E", barcode: "C", amount: "I", orderNo: "A" }, doneCols: ["M"] },
+  { name: "NEHAL X JACK", id: "1hYj2xXgwSz_GLDoFw0dIFcURgoBySyLVT8lI_a832i8", tab: "ON ORDERS", firstRow: 2, extra: true, cur: "INR", dateOrder: "dmy",
+    cols: { product: "G", size: "H", date: "F", barcode: "D", amount: "J", orderNo: "A" }, doneCols: ["B", "N"] },
+  { name: "SHIVIL X JACK", id: "12pTuZGQblboa_qhJge82iE0ZnpN5tVfFlJfL_URpkYA", tab: "OLD SHEET", firstRow: 2, extra: true, cur: "INR", dateOrder: "dmy",
+    cols: { product: "F", size: "H", date: "E", barcode: "C", amount: "I", tracking: "K", orderNo: "A" }, doneCols: ["N"] }
+];
+
+/* =====================================================================
+   2. SMALL HELPERS
+   ===================================================================== */
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s === null || s === undefined ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"); }
+function sum(l, f) { return l.reduce(function (a, r) { return a + f(r); }, 0); }
+function inr(n) { if (!n) return "₹0"; return n >= 100000 ? "₹" + (n / 100000).toFixed(2) + " lakh" : "₹" + Math.round(n).toLocaleString("en-IN"); }
+function money(r) { return r.cur === "INR" ? (r.amount ? "₹" + Math.round(r.amount).toLocaleString("en-IN") : "-") : (r.amount ? r.amount.toLocaleString("en-IN") + " (¥ or ₹)" : "see note"); }
+function toast(t) { var n = $("toast"); n.textContent = t; n.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(function () { n.style.display = "none"; }, 2200); }
+function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+var BN = ["31 to 45 days", "46 to 90 days", "91 to 180 days", "Over 180 days"], BS = ["31-45", "46-90", "91-180", "180+"];
+var BCLS = ["warn", "warn", "bad", "deep"], BCOL = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)"];
+var PAL = ["#5b4ef0", "#8b80ff", "#b7b0ff", "#f59e0b", "#34d399", "#60a5fa", "#f472b6", "#a3a3a3"];
+function bandOf(a) { return a <= 45 ? 0 : a <= 90 ? 1 : a <= 180 ? 2 : 3; }
+
+/* =====================================================================
+   3. DATES AND THE PENDING RULE (same rules as the earlier checks)
+   ===================================================================== */
+var MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
+function mkIso(y, m, d) {
+  if (y < 100) y += 2000;
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+  var dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCMonth() === m - 1 ? dt.toISOString().slice(0, 10) : null;
+}
+function parseDate(v, order) {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "number") {
+    if (v < 20000 || v > 80000) return null;
+    return { iso: new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 864e5).toISOString().slice(0, 10), amb: false };
+  }
+  var s = String(v).trim(), m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/), r;
+  if (m) { r = mkIso(+m[1], +m[2], +m[3]); return r && { iso: r, amb: false }; }
+  m = s.match(/(\d{1,2})[\s\-\/.,]+([A-Za-z]{3,9})[\s\-\/.,]+(\d{2,4})/);
+  if (m) {
+    var low = m[2].toLowerCase(), key = low.indexOf("sept") === 0 ? "sept" : low.slice(0, 3);
+    if (MONTHS[key]) { r = mkIso(+m[3], MONTHS[key], +m[1]); return r && { iso: r, amb: false }; }
+  }
+  m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/);
+  if (m) {
+    var a = +m[1], b = +m[2], y = +m[3];
+    if (a > 12) { r = mkIso(y, b, a); return r && { iso: r, amb: false }; }
+    if (b > 12) { r = mkIso(y, a, b); return r && { iso: r, amb: false }; }
+    r = order === "mdy" ? mkIso(y, a, b) : mkIso(y, b, a);
+    return r && { iso: r, amb: a !== b };
+  }
+  return null;
+}
+function todayIso() { return new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10); }
+function daysBetween(a, b) { return Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 864e5); }
+var DONE = /receiv|deliver|cancel|refund|no need|\bstore\b|returned/i;
+function isDone(t) { return DONE.test(String(t).replace(/not\s+(yet\s+)?(received|delivered)/gi, "")); }
+function str(v) { return v === null || v === undefined ? "" : String(v).trim(); }
+function num(v) { if (typeof v === "number") return v; var n = parseFloat(String(v === undefined || v === null ? "" : v).replace(/[^0-9.\-]/g, "")); return isNaN(n) ? 0 : n; }
+function lettersFor(src) {
+  var o = {}, all = Object.keys(src.cols).map(function (k) { return src.cols[k]; }).concat(src.doneCols || [], Object.keys(src.expect || {}));
+  return all.filter(function (L) { if (o[L]) return false; o[L] = 1; return true; });
+}
+function transform(src, cols, today) {
+  function get(L, i) { var a = cols[L], v = a ? a[i] : ""; return v === undefined || v === null ? "" : v; }
+  var warnings = [], rows = [], scanned = 0, expect = src.expect || {};
+  Object.keys(expect).forEach(function (L) {
+    var h = str(get(L, 0)).toLowerCase();
+    if (h.indexOf(expect[L]) < 0) warnings.push("Column " + L + " header is \"" + (str(get(L, 0)) || "empty") + "\", expected something like \"" + expect[L] + "\". Check the column letters in SOURCES.");
+  });
+  var len = Math.max.apply(null, Object.keys(cols).map(function (k) { return cols[k].length; }).concat([0]));
+  for (var i = src.firstRow - 1; i < len; i++) {
+    var product = str(get(src.cols.product, i));
+    if (!product) continue;
+    scanned++;
+    if (str(get(src.cols.barcode, i))) continue;
+    var d = parseDate(get(src.cols.date, i), src.dateOrder);
+    if (!d) continue;
+    var parts = (src.doneCols || []).map(function (L) { return str(get(L, i)); }).filter(Boolean);
+    if (isDone(parts.join(" | "))) continue;
+    var age = daysBetween(d.iso, today);
+    if (age <= MIN_AGE) continue;
+    var notes = [];
+    if (src.note) notes.push(src.note);
+    if (d.amb) notes.push("Date " + str(get(src.cols.date, i)) + " could be read two ways. Read as " + (src.dateOrder === "mdy" ? "month first" : "day first") + ".");
+    rows.push({
+      sheet: src.name + " › " + src.tab, row: "Row " + (i + 1), product: product,
+      size: src.cols.size ? str(get(src.cols.size, i)) : "", date: d.iso,
+      amount: src.cols.amount ? num(get(src.cols.amount, i)) : 0, cur: src.cur === "INR" ? "INR" : "MIX",
+      orderNo: src.cols.orderNo ? str(get(src.cols.orderNo, i)) : "", tracking: src.cols.tracking ? str(get(src.cols.tracking, i)) : "",
+      status: parts.length ? parts.join(" / ") : "No barcode", note: notes.join(" "), n: 1, swipe: !src.extra, canTrack: !!src.cols.tracking
+    });
+  }
+  return { rows: rows, warnings: warnings, scanned: scanned };
+}
+
+/* =====================================================================
+   4. STATE
+   ===================================================================== */
+var cfg = (function () {
+  var c = {}; try { c = JSON.parse(ls("sneakerops.v2") || "{}"); } catch (e) { c = {}; }
+  return { key: c.key || DEFAULT_KEY, interval: c.interval || DEFAULT_INTERVAL, extras: !!c.extras };
+})();
+function saveCfg() { ls("sneakerops.v2", JSON.stringify(cfg)); }
+var st = { view: "overview", sheet: "all", band: "all", q: "", sk: "age", asc: false, limit: 100, trend: "month", chk: "tracking" };
+var data = { rows: [], asOf: SNAP.asOf, mode: "snapshot", syncedAt: null, sources: [], warnings: [], prev: null, error: "" };
+var syncing = false, timer = null, nextAt = 0;
+
+function prep(rows, asOf) {
+  rows.forEach(function (r) { r.age = daysBetween(r.date, asOf); r.n = r.n || 1; });
+  return rows;
+}
+function useSnapshot(err) {
+  data.rows = prep(JSON.parse(JSON.stringify(SNAP.rows)), SNAP.asOf);
+  data.asOf = SNAP.asOf; data.mode = "snapshot"; data.sources = []; data.warnings = []; data.error = err || "";
+  data.syncedAt = null;
+}
+function visible() { return data.rows.filter(function (r) { return cfg.extras || r.swipe !== false; }); }
+function filtered() {
+  var q = st.q.toLowerCase();
+  return visible().filter(function (r) {
+    if (st.sheet !== "all" && r.sheet !== st.sheet) return false;
+    if (st.band !== "all" && bandOf(r.age) !== +st.band) return false;
+    if (q && [r.sheet, r.row, r.product, r.size, r.orderNo, r.tracking, r.status, r.note].join(" ").toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  }).sort(function (x, y) {
+    var k = { age: x.age - y.age, sheet: x.sheet.localeCompare(y.sheet), row: x.row.localeCompare(y.row, undefined, { numeric: true }), product: x.product.localeCompare(y.product), date: x.date.localeCompare(y.date), amount: x.amount - y.amount, order: (x.orderNo + x.tracking).localeCompare(y.orderNo + y.tracking), status: x.status.localeCompare(y.status) }[st.sk];
+    return st.asc ? k : -k;
+  });
+}
+function bySheet(list) {
+  var by = {};
+  list.forEach(function (r) { var b = by[r.sheet] || (by[r.sheet] = { n: 0, v: 0, o: 0, mix: 0, band: [0, 0, 0, 0] }); b.n += r.n; if (r.cur === "INR") b.v += r.amount; else b.mix += r.n; b.o = Math.max(b.o, r.age); b.band[bandOf(r.age)] += r.n; });
+  return by;
+}
+function count(l) { return sum(l, function (r) { return r.n; }); }
+
+/* =====================================================================
+   5. SYNC WITH GOOGLE SHEETS
+   ===================================================================== */
+function fetchSource(src) {
+  var p = new URLSearchParams(), safe = "'" + src.tab.replace(/'/g, "''") + "'", letters = lettersFor(src);
+  letters.forEach(function (L) { p.append("ranges", safe + "!" + L + "1:" + L); });
+  p.set("majorDimension", "COLUMNS"); p.set("valueRenderOption", "UNFORMATTED_VALUE"); p.set("dateTimeRenderOption", "SERIAL_NUMBER"); p.set("key", cfg.key);
+  var ctl = typeof AbortController !== "undefined" ? new AbortController() : null, to = ctl && setTimeout(function () { ctl.abort(); }, 60000);
+  return fetch("https://sheets.googleapis.com/v4/spreadsheets/" + src.id + "/values:batchGet?" + p.toString(), ctl ? { signal: ctl.signal } : {}).then(function (r) {
+    return r.json().catch(function () { return {}; }).then(function (j) {
+      if (to) clearTimeout(to);
+      if (!r.ok) {
+        var m = (j.error && j.error.message) || r.statusText || "error", hint = "";
+        if (r.status === 403) hint = " Set this spreadsheet to “Anyone with the link can view”, and check the API key allows the Google Sheets API and this website.";
+        if (r.status === 400 && /parse range|Unable to parse/i.test(m)) hint = " The tab “" + src.tab + "” was probably renamed. Update SOURCES.";
+        if (r.status === 404) hint = " Spreadsheet not found. Check the ID.";
+        throw new Error("Google Sheets " + r.status + ": " + m + hint);
+      }
+      var cols = {};
+      letters.forEach(function (L, i) { var vr = j.valueRanges && j.valueRanges[i]; cols[L] = (vr && vr.values && vr.values[0]) || []; });
+      return transform(src, cols, todayIso());
+    });
+  });
+}
+function activeSources() { return SOURCES.filter(function (s) { return cfg.extras || !s.extra; }); }
+
+function sync(manual) {
+  if (syncing) return Promise.resolve();
+  var before = data.rows.length ? count(visible()) : null;
+  if (!cfg.key) {
+    if (manual) { toast("Add your Google API key in Settings to read the live sheets"); st.view = "settings"; location.hash = "#settings"; render(); }
+    useSnapshot(""); schedule(); updateStatus(); if (!manual) render(); return Promise.resolve();
+  }
+  syncing = true; updateStatus();
+  var act = activeSources();
+  return Promise.allSettled(act.map(fetchSource)).then(function (res) {
+    var rows = [], sources = [], warnings = [], ok = 0;
+    res.forEach(function (r, i) {
+      var s = act[i], label = s.name + " › " + s.tab;
+      if (r.status === "fulfilled") {
+        ok++; rows = rows.concat(r.value.rows);
+        sources.push({ name: label, ok: true, scanned: r.value.scanned, pending: count(r.value.rows) });
+        r.value.warnings.forEach(function (w) { warnings.push(label + ": " + w); });
+      } else sources.push({ name: label, ok: false, error: String(r.reason && r.reason.message || r.reason) });
+    });
+    if (ok === 0) {
+      data.error = "Could not read any sheet. " + (sources[0] ? sources[0].error : "");
+      data.sources = sources; data.mode = data.mode === "live" ? "live" : "snapshot";
+      if (data.mode !== "live") useSnapshot(data.error), data.sources = sources;
+    } else {
+      data.rows = prep(rows, todayIso()); data.asOf = todayIso(); data.mode = "live"; data.sources = sources; data.warnings = warnings; data.syncedAt = new Date(); data.error = ok < act.length ? "Some sheets could not be read. See the Sheets tab." : "";
+      data.prev = before;
+    }
+    syncing = false; schedule(); updateStatus(); render();
+    if (manual) toast(ok ? "Synced " + ok + " of " + act.length + " sheets" : "Sync failed");
+  });
+}
+function schedule() { clearTimeout(timer); nextAt = Date.now() + cfg.interval * 60000; timer = setTimeout(function () { sync(false); }, cfg.interval * 60000); }
+function ago(d) { if (!d) return "never"; var s = Math.round((Date.now() - d.getTime()) / 1000); return s < 60 ? "just now" : s < 3600 ? Math.floor(s / 60) + " min ago" : Math.floor(s / 3600) + " h ago"; }
+function updateStatus() {
+  var live = data.mode === "live";
+  $("dot").className = "dot " + (data.error && !live ? "err" : live ? "live" : "");
+  $("modeTxt").textContent = live ? "Live" : "Snapshot";
+  $("srcTxt").textContent = live ? data.sources.filter(function (s) { return s.ok; }).length + "/" + data.sources.length + " sheets" : "31 Oct 2026";
+  $("lastTxt").textContent = ago(data.syncedAt);
+  var left = Math.max(0, Math.round((nextAt - Date.now()) / 1000));
+  $("nextTxt").textContent = syncing ? "syncing…" : nextAt ? Math.floor(left / 60) + ":" + ("0" + (left % 60)).slice(-2) : "-";
+  document.querySelectorAll(".js-sync").forEach(function (b) {
+    b.disabled = syncing;
+    b.innerHTML = syncing ? '<span class="spin"></span>Syncing' : "Sync now";
+  });
+  var chk = checks().reduce(function (a, c) { return a + c.list.length; }, 0);
+  $("chkBadge").textContent = chk ? (chk > 99 ? "99+" : chk) : "";
+}
+
+/* =====================================================================
+   6. CHARTS (plain SVG, no libraries)
+   ===================================================================== */
+function weekStart(iso) { var d = new Date(iso + "T00:00:00Z"), k = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - k); return d.toISOString().slice(0, 10); }
+function lineChart(list, mode) {
+  var m = {};
+  list.forEach(function (r) { var k = mode === "week" ? weekStart(r.date) : r.date.slice(0, 7); m[k] = (m[k] || 0) + r.n; });
+  var keys = Object.keys(m).sort();
+  if (!keys.length) return '<div class="empty">No pending orders</div>';
+  var W = 600, H = 250, L = 40, R = 14, T = 14, B = 30, mx = Math.max.apply(null, keys.map(function (k) { return m[k]; })), top = Math.max(4, Math.ceil(mx / 4) * 4);
+  function x(i) { return L + (keys.length === 1 ? (W - L - R) / 2 : i * (W - L - R) / (keys.length - 1)); }
+  function y(v) { return T + (H - T - B) * (1 - v / top); }
+  var g = "", i;
+  for (i = 0; i <= 4; i++) { var gv = top / 4 * i; g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(gv) + '" y2="' + y(gv) + '" stroke="var(--line)"/><text class="axis" x="' + (L - 8) + '" y="' + (y(gv) + 4) + '" text-anchor="end">' + Math.round(gv) + '</text>'; }
+  var pts = keys.map(function (k, j) { return x(j) + "," + y(m[k]); });
+  var step = Math.ceil(keys.length / 9);
+  var labels = keys.map(function (k, j) {
+    if (j % step) return "";
+    var d = new Date((mode === "week" ? k : k + "-01") + "T00:00:00Z");
+    return '<text class="axis" x="' + x(j) + '" y="' + (H - 8) + '" text-anchor="middle">' + (mode === "week" ? d.getUTCDate() + " " : "") + d.toLocaleString("en", { month: "short", timeZone: "UTC" }) + (mode === "month" ? " " + String(d.getUTCFullYear()).slice(2) : "") + '</text>';
+  }).join("");
+  var dots = keys.map(function (k, j) { return '<circle cx="' + x(j) + '" cy="' + y(m[k]) + '" r="' + (keys.length > 30 ? 3 : 5) + '" fill="var(--card)" stroke="var(--pri)" stroke-width="2.5" data-tip="' + esc((mode === "week" ? "Week of " : "") + k + ": " + m[k] + " pending") + '" data-range="' + k + '"></circle>'; }).join("");
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Pending orders by order ' + mode + '">' + g +
+    '<defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b4ef0" stop-opacity=".22"/><stop offset="1" stop-color="#5b4ef0" stop-opacity="0"/></linearGradient></defs>' +
+    '<path d="M' + x(0) + "," + y(0) + " L" + pts.join(" L") + " L" + x(keys.length - 1) + "," + y(0) + ' Z" fill="url(#lg)"/><polyline points="' + pts.join(" ") + '" fill="none" stroke="var(--pri)" stroke-width="2.5" stroke-linejoin="round"/>' + dots + labels + '</svg>';
+}
+function donut(by, keys) {
+  var tot = sum(keys, function (k) { return by[k].n; }) || 1, C = 2 * Math.PI * 70, off = 0, segs = "";
+  keys.forEach(function (k, i) {
+    var len = by[k].n / tot * C;
+    segs += '<circle r="70" cx="100" cy="100" fill="none" stroke="' + PAL[Math.min(i, 7)] + '" stroke-width="28" stroke-dasharray="' + len + " " + (C - len) + '" stroke-dashoffset="' + (-off) + '" transform="rotate(-90 100 100)" data-tip="' + esc(k + ": " + by[k].n + " (" + Math.round(by[k].n / tot * 100) + "%)") + '" data-sheet="' + esc(k) + '"></circle>';
+    off += len;
+  });
+  return '<div class="donutwrap"><svg viewBox="0 0 200 200" style="max-width:230px" role="img" aria-label="Share of pending orders by sheet">' + segs + '</svg><div class="donutc"><small>' + esc(keys[0].split(" › ")[0]) + '</small><b>' + Math.round(by[keys[0]].n / tot * 100) + '%</b></div></div><div class="legend">' +
+    keys.map(function (k, i) { return '<span data-sheet="' + esc(k) + '"><i style="background:' + PAL[Math.min(i, 7)] + '"></i>' + esc(k.replace(" X JACK", "")) + '</span>'; }).join("") + '</div>';
+}
+function barChart(list) {
+  var bb = [0, 0, 0, 0]; list.forEach(function (r) { bb[bandOf(r.age)] += r.n; });
+  var mx = Math.max.apply(null, bb) || 1, top = Math.max(4, Math.ceil(mx / 4) * 4), W = 420, H = 230, L = 38, T = 14, B = 30, bw = 54, gap = (W - L - 12 - bw * 4) / 3, o = "", i;
+  for (i = 0; i <= 4; i++) { var yy = T + (H - T - B) * (1 - i / 4); o += '<line x1="' + L + '" x2="' + (W - 6) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--line)"/><text class="axis" x="' + (L - 6) + '" y="' + (yy + 4) + '" text-anchor="end">' + Math.round(top / 4 * i) + '</text>'; }
+  var hi = bb.indexOf(mx);
+  bb.forEach(function (n, j) {
+    var h = (H - T - B) * n / top, bx = L + 8 + j * (bw + gap), by = H - B - h;
+    o += '<g data-band="' + j + '" data-tip="' + esc(BN[j] + ": " + n + " pending") + '"><rect x="' + bx + '" y="' + by + '" width="' + bw + '" height="' + Math.max(h, 2) + '" rx="10" fill="' + (j === hi ? "var(--pri)" : "var(--pri2)") + '"></rect><text class="axis" x="' + (bx + bw / 2) + '" y="' + (by - 6) + '" text-anchor="middle" style="fill:var(--ink);font-weight:600">' + n + '</text><text class="axis" x="' + (bx + bw / 2) + '" y="' + (H - 10) + '" text-anchor="middle">' + BS[j] + '</text></g>';
+  });
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Pending orders by age">' + o + '</svg>';
+}
+function stacked(by, keys) {
+  if (!keys.length) return '<div class="empty">No data</div>';
+  var mx = Math.max.apply(null, keys.map(function (k) { return by[k].n; })) || 1, rows = keys.slice(0, 8), out = "";
+  rows.forEach(function (k) {
+    var segs = "", acc = 0;
+    by[k].band.forEach(function (n, j) { if (!n) return; var w = n / mx * 100; segs += '<i data-sheet="' + esc(k) + '" data-band="' + j + '" data-tip="' + esc(k + " · " + BN[j] + ": " + n) + '" style="display:block;height:100%;width:' + w + '%;background:' + BCOL[j] + '"></i>'; acc += n; });
+    out += '<div class="hb" style="cursor:default"><span class="l" title="' + esc(k) + '">' + esc(k.replace(" X JACK", "").replace(" › ", " ")) + '</span><span class="t" style="display:flex;background:var(--soft)">' + segs + '</span><em>' + by[k].n + '</em></div>';
+  });
+  return out + '<div class="legend">' + BN.map(function (n, j) { return '<span data-band="' + j + '"><i style="background:' + BCOL[j] + '"></i>' + n + '</span>'; }).join("") + '</div>';
+}
+function valueBars(by, keys) {
+  var ks = keys.filter(function (k) { return by[k].v > 0; }).sort(function (a, b) { return by[b].v - by[a].v; }).slice(0, 8);
+  if (!ks.length) return '<div class="empty">No amounts in ₹</div>';
+  var mx = by[ks[0]].v;
+  return ks.map(function (k) { return '<button class="hb" type="button" data-sheet="' + esc(k) + '" data-tip="' + esc(k + ": " + inr(by[k].v)) + '"><span class="l">' + esc(k.replace(" X JACK", "").replace(" › ", " ")) + '</span><span class="t"><i style="width:' + (by[k].v / mx * 100) + '%"></i></span><em>' + inr(by[k].v) + '</em></button>'; }).join("");
+}
+
+/* =====================================================================
+   7. TABLES, CHECKS, PAGES
+   ===================================================================== */
+function pill(r) { return '<span class="pill ' + BCLS[bandOf(r.age)] + '">' + r.age + ' d</span>'; }
+function rowHtml(r) {
+  return '<tr><td>' + pill(r) + '</td><td>' + esc(r.sheet) + '</td><td>' + esc(r.row) + '</td><td>' + esc(r.product) + (r.size ? '<small>' + esc(r.size) + '</small>' : '') + (r.n > 1 ? '<small>' + r.n + ' rows</small>' : '') + '</td><td>' + esc(r.date) + '</td><td class="num">' + esc(money(r)) + '</td><td>' + (esc(r.orderNo) || '<small>no order no.</small>') + (r.tracking ? '<small>' + esc(r.tracking) + '</small>' : r.canTrack === false ? '' : '<small>no tracking</small>') + '</td><td>' + esc(r.status) + '</td><td class="note">' + esc(r.note) + '</td></tr>';
+}
+function tableHtml(list, sortable, limit) {
+  var hs = [["Age", "age"], ["Sheet", "sheet"], ["Row", "row"], ["Product", "product"], ["Order date", "date"], ["Amount", "amount"], ["Order no. and tracking", "order"], ["Status in sheet", "status"], ["Note", ""]];
+  var shown = limit ? list.slice(0, limit) : list;
+  return '<div class="scroll"><table style="min-width:980px"><thead><tr>' + hs.map(function (h) { return '<th' + (sortable && h[1] ? ' class="s" data-k="' + h[1] + '"' : '') + '>' + h[0] + (sortable && st.sk === h[1] ? (st.asc ? " ▲" : " ▼") : "") + '</th>'; }).join("") + '</tr></thead><tbody>' +
+    (shown.map(rowHtml).join("") || '<tr><td colspan="9" class="empty">Nothing here. Clear the filters or the search.</td></tr>') + '</tbody></table></div>' +
+    (limit && list.length > limit ? '<div style="text-align:center;margin-top:12px"><button class="btn soft" type="button" data-act="more">Show 100 more (' + (list.length - limit) + ' left)</button></div>' : "");
+}
+function checks() {
+  var v = visible();
+  var dupMap = {}; v.forEach(function (r) { var k = [r.sheet, r.product, r.size, r.date].join("|"); (dupMap[k] = dupMap[k] || []).push(r); });
+  var dups = []; Object.keys(dupMap).forEach(function (k) { if (dupMap[k].length > 1) dups = dups.concat(dupMap[k]); }); v.forEach(function (r) { if (r.n > 1 && dups.indexOf(r) < 0) dups.push(r); });
+  return [
+    { id: "tracking", label: "No tracking", why: "These orders have no tracking number. Ask the seller for one before anything else.", list: v.filter(function (r) { return r.canTrack !== false && !r.tracking; }) },
+    { id: "dups", label: "Possible duplicates", why: "Same shoe, size and date more than once. Check you did not order twice, and cancel the extra.", list: dups },
+    { id: "dates", label: "Date unclear", why: "The order date is typed text that can be read two ways, so the age may be wrong. Make it a real date in the sheet.", list: v.filter(function (r) { return /two ways/.test(r.note); }) },
+    { id: "old", label: "Over 180 days", why: "Almost certainly lost or already closed by hand. Mark each one cancelled or chase it.", list: v.filter(function (r) { return r.age > 180; }) },
+    { id: "mix", label: "Amount not in ₹", why: "The amount is in yuan or mixed currencies, so it is not in the ₹ totals.", list: v.filter(function (r) { return r.cur !== "INR"; }) }
+  ];
+}
+function banner() {
+  var b = "";
+  if (data.mode === "snapshot") b += '<div class="banner warn"><span><b>Showing a snapshot from 31 Oct 2026.</b> ' + (cfg.key ? "The sheets could not be read yet." : "Add your Google API key in Settings to read the live sheets.") + (data.error ? " " + esc(data.error) : "") + '</span><button class="btn soft" type="button" data-go="settings">Open Settings</button></div>';
+  else if (data.error) b += '<div class="banner bad"><span><b>' + esc(data.error) + '</b></span><button class="btn soft" type="button" data-go="sheets">See which</button></div>';
+  if (data.warnings.length) b += '<div class="banner warn"><span><b>A column may have moved.</b> ' + esc(data.warnings[0]) + (data.warnings.length > 1 ? " (+" + (data.warnings.length - 1) + " more in the Sheets tab)" : "") + '</span></div>';
+  return b;
+}
+function insights(list, by, keys) {
+  var tot = count(list) || 1, old = list.slice().sort(function (a, b) { return b.age - a.age; })[0];
+  var noT = count(list.filter(function (r) { return r.canTrack !== false && !r.tracking; })), o90 = count(list.filter(function (r) { return r.age > 90; }));
+  var o = [];
+  if (keys.length) o.push(["📦", "Biggest backlog", esc(keys[0]) + " has " + by[keys[0]].n + " lines, " + Math.round(by[keys[0]].n / tot * 100) + "% of everything pending."]);
+  if (old) o.push(["⏳", "Oldest order", esc(old.product.slice(0, 48)) + " is " + old.age + " days old in " + esc(old.sheet) + "."]);
+  o.push(["🔎", "Chase first", noT + " lines have no tracking number. " + o90 + " lines are over 90 days old: cancel them or chase them."]);
+  return o.map(function (i) { return '<div class="ins"><span>' + i[0] + '</span><div><b>' + i[1] + '</b><small>' + i[2] + '</small></div></div>'; }).join("");
+}
+function pgOverview() {
+  var B = visible(), by = bySheet(B), keys = Object.keys(by).sort(function (a, b) { return by[b].n - by[a].n; });
+  var cnt = count(B), val = sum(B, function (r) { return r.cur === "INR" ? r.amount : 0; }), old = Math.max.apply(null, B.map(function (r) { return r.age; }).concat([0]));
+  var o90 = count(B.filter(function (r) { return r.age > 90; })), mixN = count(B.filter(function (r) { return r.cur !== "INR"; }));
+  var diff = data.prev === null || data.prev === undefined ? null : cnt - data.prev;
+  var oldest = B.slice().sort(function (a, b) { return b.age - a.age || b.amount - a.amount; }).slice(0, 5);
+  function kp(ic, nm, v, chip, cls) { return '<div class="card"><div class="k-h"><span>' + ic + '</span>' + nm + '</div><div class="k-b"><b>' + v + '</b><span class="pill ' + cls + '">' + chip + '</span></div></div>'; }
+  return banner() + '<div class="hello"><div><h1>Welcome back!</h1><p>Here’s what is late today. Counted to ' + esc(data.asOf) + '.</p></div><div class="btns"><button class="btn soft" type="button" data-act="copy">Copy chase list</button><button class="btn pri" type="button" data-act="csv">Export CSV</button></div></div>' +
+    '<div class="kpis">' + kp("▣", "Pending lines", cnt, diff === null ? keys.length + " sheets" : (diff > 0 ? "+" + diff : diff) + " since last sync", diff > 0 ? "bad" : diff < 0 ? "good" : "info") +
+    kp("₹", "Value at order price", inr(val), mixN ? mixN + " lines not in ₹" : "all in ₹", "good") + kp("⏱", "Oldest order", old + " d", "since order", "bad") + kp("⚠", "Over 90 days", o90, Math.round(o90 / (cnt || 1) * 100) + "% of all", "deep") + '</div>' +
+    '<div class="g3 r1"><div class="card"><div class="head"><div><h2>Pending by order date</h2><div class="sub">When the stuck orders were placed</div></div><div class="seg" role="tablist"><button type="button" role="tab" data-trend="month" aria-selected="' + (st.trend === "month") + '">Month</button><button type="button" role="tab" data-trend="week" aria-selected="' + (st.trend === "week") + '">Week</button></div></div>' + lineChart(B, st.trend) + '</div>' +
+    '<div class="card"><h2>By sheet</h2><div class="sub">Share of pending lines. Click to filter.</div>' + (keys.length ? donut(by, keys.slice(0, 7)) : '<div class="empty">No data</div>') + '</div>' +
+    '<div class="card"><div class="head"><div><h2>Value by sheet</h2><div class="sub">At order price, in ₹</div></div></div>' + valueBars(by, keys) + '</div></div>' +
+    '<div class="g3 r2"><div class="card"><h2>Age of pending lines</h2><div class="sub">Click a bar to see those orders</div>' + barChart(B) + '</div>' +
+    '<div class="card"><h2>Age by sheet</h2><div class="sub">Colour shows how old. Click a piece to filter.</div>' + stacked(by, keys) + '</div>' +
+    '<div class="card"><h2>Insights</h2><div class="sub" style="margin-bottom:12px">Worked out from your sheets</div>' + insights(B, by, keys) + '</div></div>' +
+    '<div class="card"><div class="head"><div><h2>Oldest pending orders</h2><div class="sub">Chase these first</div></div><button class="link" type="button" data-go="orders">View all</button></div>' + tableHtml(oldest, false) + '</div>' + foot();
+}
+function filtersBar() {
+  var by = bySheet(visible()), keys = Object.keys(by).sort(function (a, b) { return by[b].n - by[a].n; });
+  return '<div class="filters"><button type="button" data-sheet="all" aria-pressed="' + (st.sheet === "all") + '">All sheets</button>' + keys.map(function (k) { return '<button type="button" data-sheet="' + esc(k) + '" aria-pressed="' + (st.sheet === k) + '">' + esc(k) + ' · ' + by[k].n + '</button>'; }).join("") + '</div>' +
+    '<div class="filters">' + ["all", 0, 1, 2, 3].map(function (b) { return '<button type="button" data-band="' + b + '" aria-pressed="' + (String(st.band) === String(b)) + '">' + (b === "all" ? "All ages" : BN[b]) + '</button>'; }).join("") + '</div>';
+}
+function pgOrders() {
+  var L = filtered();
+  return banner() + '<div class="hello"><div><h1>Pending orders</h1><p id="cnt">' + count(L) + ' lines, ' + inr(sum(L, function (r) { return r.cur === "INR" ? r.amount : 0; })) + ' at order price</p></div><div class="btns"><button class="btn soft" type="button" data-act="copy">Copy chase list</button><button class="btn pri" type="button" data-act="csv">Export CSV</button></div></div><div class="card">' + filtersBar() + '<div id="tbl">' + tableHtml(L, true, st.limit) + '</div></div>' + foot();
+}
+function pgSheets() {
+  var B = visible(), by = bySheet(B), tot = count(B) || 1, keys = Object.keys(by).sort(function (a, b) { return by[b].n - by[a].n; });
+  var cards = keys.map(function (k) { var p = Math.round(by[k].n / tot * 100); return '<button class="sheet-card card" type="button" data-sheet="' + esc(k) + '" data-go="orders"><div class="t">' + esc(k) + '</div><div class="big">' + by[k].n + ' lines</div><div class="prog"><i style="width:' + p + '%"></i></div><div class="m"><span>' + inr(by[k].v) + '</span><span>oldest ' + by[k].o + ' d</span></div></button>'; }).join("");
+  var srcs = data.sources.length ? data.sources.map(function (s) { return '<tr><td>' + esc(s.name) + '</td><td>' + (s.ok ? '<span class="pill good">Read</span>' : '<span class="pill bad">Failed</span>') + '</td><td class="num">' + (s.ok ? s.scanned : "") + '</td><td class="num">' + (s.ok ? s.pending : "") + '</td><td class="note">' + esc(s.ok ? "" : s.error) + '</td></tr>'; }).join("") : '<tr><td colspan="5" class="empty">No live sync yet. These numbers are the snapshot.</td></tr>';
+  return banner() + '<div class="hello"><div><h1>Sheets</h1><p>Where the pending orders sit. Click a card to see its orders.</p></div></div><div class="cards" style="margin-bottom:14px">' + (cards || '<div class="empty">No pending orders</div>') + '</div>' +
+    '<div class="card"><h2>Sync status</h2><div class="sub">Every sheet tab the dashboard reads</div><div class="scroll"><table><thead><tr><th>Sheet and tab</th><th>Result</th><th class="num">Rows read</th><th class="num">Pending</th><th>Message</th></tr></thead><tbody>' + srcs + '</tbody></table></div>' +
+    (data.warnings.length ? '<p><b>Check these:</b></p><ul>' + data.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join("") + '</ul>' : "") + '</div>' + foot();
+}
+function pgChecks() {
+  var cs = checks(), cur = cs.filter(function (c) { return c.id === st.chk; })[0] || cs[0];
+  return banner() + '<div class="hello"><div><h1>Data checks</h1><p>Things in the sheets that are probably wrong or need a decision.</p></div></div><div class="card"><div class="seg" role="tablist" style="margin-bottom:12px">' +
+    cs.map(function (c) { return '<button type="button" role="tab" data-chk="' + c.id + '" aria-selected="' + (c.id === cur.id) + '">' + c.label + '<span class="n">' + c.list.length + '</span></button>'; }).join("") + '</div><div class="sub">' + esc(cur.why) + '</div>' + tableHtml(cur.list.slice().sort(function (a, b) { return b.age - a.age; }).slice(0, st.limit), false) + (cur.list.length > st.limit ? '<div style="text-align:center;margin-top:12px"><button class="btn soft" type="button" data-act="more">Show 100 more</button></div>' : "") + '</div>' + foot();
+}
+function pgSettings() {
+  return '<div class="hello"><div><h1>Settings</h1><p>Saved in this browser only.</p></div></div><div class="g3" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">' +
+    '<div class="card"><h2>Connect to Google Sheets</h2><div class="sub">Needed once. Without it the dashboard shows the 31 Oct snapshot.</div>' +
+    '<div class="field"><label for="key">Google API key</label><input id="key" type="password" autocomplete="off" value="' + esc(cfg.key) + '" placeholder="AIza..."><small>Starts with AIza. Stored in this browser. To use one key on every device, paste it into <code>DEFAULT_KEY</code> near the top of index.html.</small></div>' +
+    '<div class="field"><label for="iv">Auto sync every</label><select id="iv">' + [5, 10, 15, 30, 60].map(function (m) { return '<option value="' + m + '"' + (cfg.interval === m ? " selected" : "") + '>' + m + ' minutes</option>'; }).join("") + '</select></div>' +
+    '<label class="chk"><input type="checkbox" id="ex"' + (cfg.extras ? " checked" : "") + '><span><b>Include other tabs</b><br><small>SAARTHAK, NEHAL and SHIVIL OLD SHEET. They were read earlier with an older filter and may include old, closed orders.</small></span></label>' +
+    '<div class="btns"><button class="btn pri" type="button" data-act="save">Save and sync</button><button class="btn soft" type="button" data-act="clear">Remove key, use snapshot</button></div></div>' +
+    '<div class="card"><h2>How to get the API key</h2><ol class="steps"><li>Go to <b>console.cloud.google.com</b> and create a project.</li><li><b>APIs and Services, Library</b>, search <b>Google Sheets API</b>, click <b>Enable</b>.</li><li><b>Credentials, Create credentials, API key</b>. Copy it.</li><li>Click the key, <b>Restrict key</b>: under API restrictions pick <b>Google Sheets API</b>, and under website restrictions add your Vercel address (for example <code>https://your-app.vercel.app/*</code>).</li><li>For each spreadsheet: <b>Share, General access, Anyone with the link, Viewer</b>. The owner of CDC X ZENTRA and CDC Swipe must do this for theirs.</li><li>Paste the key here and press <b>Save and sync</b>.</li></ol>' +
+    '<p class="sub">Anyone who has a spreadsheet link can then read it, and the key is visible to anyone who opens this page. The website restriction stops other sites from using it.</p></div></div>' + foot();
+}
+function foot() {
+  return '<div class="foot">Pending means: ordered more than ' + MIN_AGE + ' days ago, no barcode, and not marked received, delivered, cancelled, refunded, no need or store. ' + (data.mode === "live" ? "Read from Google Sheets " + ago(data.syncedAt) + ", then every " + cfg.interval + " minutes." : "Snapshot from 31 Oct 2026.") + ' Amounts in yuan or mixed currencies are not added to the ₹ totals. Rows marked “not rechecked” come from tabs read with an older filter.</div>';
+}
+
+/* =====================================================================
+   8. ACTIONS, EVENTS, START
+   ===================================================================== */
+function chaseText() {
+  return filtered().slice(0, 25).map(function (r) { return r.age + "d | " + r.product + (r.size ? " " + r.size : "") + " | " + r.sheet + " " + r.row + " | " + money(r) + (r.orderNo ? " | " + r.orderNo : ""); }).join("\n");
+}
+function csv() {
+  var head = ["Age days", "Sheet", "Row", "Product", "Size", "Order date", "Amount", "Currency", "Order no", "Tracking", "Status", "Note"];
+  var rows = filtered().map(function (r) { return [r.age, r.sheet, r.row, r.product, r.size, r.date, r.amount, r.cur, r.orderNo, r.tracking, r.status, r.note].map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(","); });
+  var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([[head.join(",")].concat(rows).join("\n")], { type: "text/csv" })); a.download = "pending-orders.csv"; a.click();
+}
+function render() {
+  document.querySelectorAll("#nav a").forEach(function (a) { a.classList.toggle("on", a.getAttribute("data-nav") === st.view); });
+  $("crumb").textContent = { overview: "Overview", orders: "Pending orders", sheets: "Sheets", checks: "Data checks", settings: "Settings" }[st.view];
+  var f = { overview: pgOverview, orders: pgOrders, sheets: pgSheets, checks: pgChecks, settings: pgSettings }[st.view];
+  var ae = document.activeElement;
+  if (st.view === "settings" && ae && /INPUT|SELECT/.test(ae.tagName) && ae.id) return;   // do not wipe what you are typing
+  $("page").innerHTML = f();
+  updateStatus();
+}
+function go(v) { st.view = v; st.limit = 100; if (location.hash !== "#" + v) location.hash = "#" + v; else render(); }
+function route() { var h = (location.hash || "#overview").slice(1); st.view = { overview: 1, orders: 1, sheets: 1, checks: 1, settings: 1 }[h] ? h : "overview"; render(); }
+
+document.addEventListener("click", function (e) {
+  var t = e.target.closest ? e.target.closest("[data-act],[data-go],[data-sheet],[data-band],[data-k],[data-trend],[data-chk],.js-sync") : null;
+  if (!t) return;
+  if (t.classList.contains("js-sync")) { sync(true); return; }
+  if (t.hasAttribute("data-trend")) { st.trend = t.getAttribute("data-trend"); render(); return; }
+  if (t.hasAttribute("data-chk")) { st.chk = t.getAttribute("data-chk"); st.limit = 100; render(); return; }
+  if (t.hasAttribute("data-k")) { var k = t.getAttribute("data-k"); if (st.sk === k) st.asc = !st.asc; else { st.sk = k; st.asc = false; } render(); return; }
+  var act = t.getAttribute("data-act");
+  if (act === "more") { st.limit += 100; render(); return; }
+  if (act === "csv") { csv(); return; }
+  if (act === "copy") { (navigator.clipboard ? navigator.clipboard.writeText(chaseText()) : Promise.reject()).then(function () { toast("Chase list copied"); }, function () { toast("Copy is not allowed here"); }); return; }
+  if (act === "save") {
+    cfg.key = ($("key").value || "").trim(); cfg.interval = +$("iv").value || DEFAULT_INTERVAL; cfg.extras = $("ex").checked; saveCfg();
+    st.sheet = "all"; st.band = "all"; toast("Saved"); go("overview"); sync(true); return;
+  }
+  if (act === "clear") { cfg.key = ""; saveCfg(); useSnapshot(""); toast("Using the snapshot"); render(); return; }
+  if (t.hasAttribute("data-sheet")) { var s = t.getAttribute("data-sheet"); st.sheet = (st.sheet === s && st.view === "orders" && !t.hasAttribute("data-go")) ? "all" : s; st.band = t.hasAttribute("data-band") ? t.getAttribute("data-band") : "all"; st.limit = 100; if (st.view !== "orders") { go("orders"); return; } render(); return; }
+  if (t.hasAttribute("data-band")) { var b = t.getAttribute("data-band"); st.band = String(st.band) === b && st.view === "orders" ? "all" : b; if (st.view !== "orders") st.sheet = "all"; st.limit = 100; if (st.view !== "orders") { go("orders"); return; } render(); return; }
+  if (t.hasAttribute("data-go")) { go(t.getAttribute("data-go")); }
+});
+document.addEventListener("mousemove", function (e) {
+  var t = e.target.closest ? e.target.closest("[data-tip]") : null, tip = $("tip");
+  if (!t) { tip.style.display = "none"; return; }
+  tip.textContent = t.getAttribute("data-tip"); tip.style.display = "block";
+  tip.style.left = Math.min(e.clientX + 14, window.innerWidth - 270) + "px"; tip.style.top = (e.clientY + 16) + "px";
+});
+$("gq").addEventListener("input", function (e) { st.q = e.target.value; st.limit = 100; if (st.view !== "orders") { go("orders"); return; } render(); });
+$("themeBtn").addEventListener("click", function () {
+  var r = document.documentElement, dark = r.getAttribute("data-theme") === "dark" || (!r.getAttribute("data-theme") && window.matchMedia("(prefers-color-scheme:dark)").matches);
+  r.setAttribute("data-theme", dark ? "light" : "dark");
+});
+window.addEventListener("hashchange", route);
+document.addEventListener("visibilitychange", function () { if (!document.hidden && cfg.key && nextAt && Date.now() > nextAt) sync(false); });
+setInterval(updateStatus, 1000);
+
+useSnapshot("");
+route();
+schedule();
+if (cfg.key) sync(false);
+window.__app = { sync: sync, data: function () { return data; }, cfg: cfg, transform: transform, parseDate: parseDate, SOURCES: SOURCES, st: st, render: render, visible: visible, checks: checks };
+})();
+</script>
+</body>
+</html>
