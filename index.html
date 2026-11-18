@@ -118,10 +118,18 @@ td small{display:block;color:var(--mute)}
 code{background:var(--soft);border-radius:6px;padding:1px 6px;font-size:12px}
 .foot{margin-top:16px;color:var(--mute);font-size:12px;border:1px dashed var(--line);border-radius:12px;padding:12px 14px}
 #tip{position:fixed;z-index:50;pointer-events:none;background:var(--ink);color:var(--bg);padding:6px 10px;border-radius:8px;font-size:12px;font-weight:600;display:none;max-width:260px}
+.fbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 26px;background:var(--card);border-bottom:1px solid var(--line)}
+.fbar .lbl{font-weight:600}
+.fbar label{display:flex;align-items:center;gap:6px;color:var(--mute)}
+.fbar select,.fbar input[type=date]{border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--card);color:var(--ink)}
+.fbar .cnt{margin-left:auto;color:var(--mute);font-size:13px}
+.big-search{width:100%;padding:14px 16px;font-size:16px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);margin-bottom:12px}
+mark{background:#ffe08a;color:#15171f;border-radius:3px;padding:0 1px}
+.tbl-search{padding:8px 12px;border:1px solid var(--line);border-radius:20px;background:var(--card);color:var(--ink);min-width:220px}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;z-index:60;display:none}
 .empty{padding:24px;text-align:center;color:var(--mute)}
 @media (max-width:1100px){.r1,.r2{grid-template-columns:1fr 1fr}}
-@media (max-width:860px){.app{grid-template-columns:1fr}.side{position:static;height:auto;flex-direction:row;align-items:center;gap:10px;padding:10px 14px;overflow-x:auto}.nav{flex-direction:row}.syncbox{display:none}.r1,.r2{grid-template-columns:1fr}#page{padding:16px}.top{padding:10px 14px;flex-wrap:wrap}.search{width:100%;order:9}}
+@media (max-width:860px){.fbar{padding:10px 14px}.fbar .cnt{margin-left:0;width:100%}.app{grid-template-columns:1fr}.side{position:static;height:auto;flex-direction:row;align-items:center;gap:10px;padding:10px 14px;overflow-x:auto}.nav{flex-direction:row}.syncbox{display:none}.r1,.r2{grid-template-columns:1fr}#page{padding:16px}.top{padding:10px 14px;flex-wrap:wrap}.search{width:100%;order:9}}
 </style>
 </head>
 <body>
@@ -130,6 +138,7 @@ code{background:var(--soft);border-radius:6px;padding:1px 6px;font-size:12px}
     <div class="brand"><span class="logo">S</span><b>SneakerOps</b></div>
     <nav class="nav" aria-label="Main" id="nav">
       <a href="#overview" data-nav="overview"><i>▦</i>Overview</a>
+      <a href="#search" data-nav="search"><i>⌕</i>Search</a>
       <a href="#orders" data-nav="orders"><i>☰</i>Pending orders</a>
       <a href="#sheets" data-nav="sheets"><i>▤</i>Sheets</a>
       <a href="#checks" data-nav="checks"><i>⚑</i>Data checks<span class="badge" id="chkBadge"></span></a>
@@ -145,10 +154,11 @@ code{background:var(--soft);border-radius:6px;padding:1px 6px;font-size:12px}
   <div class="main">
     <header class="top">
       <span class="crumb" id="crumb">Overview</span>
-      <label class="search"><span aria-hidden="true">⌕</span><input id="gq" type="search" placeholder="Search product, order no. or tracking" aria-label="Search"></label>
+      <label class="search"><span aria-hidden="true">⌕</span><input id="gq" type="search" placeholder="Search any order…" aria-label="Search any order"></label>
       <button class="btn pri js-sync" type="button" id="topSync">Sync now</button>
-      <button class="icon-btn" id="themeBtn" type="button" aria-label="Switch light or dark">◐</button>
+      <div class="seg" id="themeSeg" role="group" aria-label="Theme"><button type="button" data-th="light" aria-pressed="false">☀ Light</button><button type="button" data-th="dark" aria-pressed="false">☾ Night</button></div>
     </header>
+    <div class="fbar" id="fbar"></div>
     <main id="page"></main>
   </div>
 </div>
@@ -288,10 +298,10 @@ function transform(src, cols, today) {
    ===================================================================== */
 var cfg = (function () {
   var c = {}; try { c = JSON.parse(ls("sneakerops.v2") || "{}"); } catch (e) { c = {}; }
-  return { key: c.key || DEFAULT_KEY, interval: c.interval || DEFAULT_INTERVAL, extras: !!c.extras };
+  return { key: c.key || DEFAULT_KEY, interval: c.interval || DEFAULT_INTERVAL, extras: !!c.extras, theme: c.theme === "light" || c.theme === "dark" ? c.theme : "auto" };
 })();
 function saveCfg() { ls("sneakerops.v2", JSON.stringify(cfg)); }
-var st = { view: "overview", sheet: "all", band: "all", q: "", sk: "age", asc: false, limit: 100, trend: "month", chk: "tracking" };
+var st = { view: "overview", sheet: "all", band: "all", q: "", sk: "age", asc: false, limit: 100, trend: "month", chk: "tracking", month: "all", from: "", to: "", sq: "", scope: "all", sdate: false, rendered: false };
 var data = { rows: [], asOf: SNAP.asOf, mode: "snapshot", syncedAt: null, sources: [], warnings: [], prev: null, error: "" };
 var syncing = false, timer = null, nextAt = 0;
 
@@ -304,7 +314,16 @@ function useSnapshot(err) {
   data.asOf = SNAP.asOf; data.mode = "snapshot"; data.sources = []; data.warnings = []; data.error = err || "";
   data.syncedAt = null;
 }
-function visible() { return data.rows.filter(function (r) { return cfg.extras || r.swipe !== false; }); }
+function baseVisible() { return data.rows.filter(function (r) { return cfg.extras || r.swipe !== false; }); }
+// every page works on this list, so the date and month filter applies everywhere
+function visible() {
+  return baseVisible().filter(function (r) {
+    if (st.month !== "all" && r.date.slice(0, 7) !== st.month) return false;
+    if (st.from && r.date < st.from) return false;
+    if (st.to && r.date > st.to) return false;
+    return true;
+  });
+}
 function filtered() {
   var q = st.q.toLowerCase();
   return visible().filter(function (r) {
@@ -352,7 +371,7 @@ function activeSources() { return SOURCES.filter(function (s) { return cfg.extra
 
 function sync(manual) {
   if (syncing) return Promise.resolve();
-  var before = data.rows.length ? count(visible()) : null;
+  var before = data.mode === "live" ? count(baseVisible()) : null;   // compare live with live, never with the snapshot
   if (!cfg.key) {
     if (manual) { toast("Add your Google API key in Settings to read the live sheets"); st.view = "settings"; location.hash = "#settings"; render(); }
     useSnapshot(""); schedule(); updateStatus(); if (!manual) render(); return Promise.resolve();
@@ -467,8 +486,14 @@ function valueBars(by, keys) {
    7. TABLES, CHECKS, PAGES
    ===================================================================== */
 function pill(r) { return '<span class="pill ' + BCLS[bandOf(r.age)] + '">' + r.age + ' d</span>'; }
+var HL = [];
+function hl(s) {
+  var h = esc(s);
+  HL.forEach(function (w) { if (w) h = h.replace(new RegExp('(' + esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig'), '<mark>$1</mark>'); });
+  return h;
+}
 function rowHtml(r) {
-  return '<tr><td>' + pill(r) + '</td><td>' + esc(r.sheet) + '</td><td>' + esc(r.row) + '</td><td>' + esc(r.product) + (r.size ? '<small>' + esc(r.size) + '</small>' : '') + (r.n > 1 ? '<small>' + r.n + ' rows</small>' : '') + '</td><td>' + esc(r.date) + '</td><td class="num">' + esc(money(r)) + '</td><td>' + (esc(r.orderNo) || '<small>no order no.</small>') + (r.tracking ? '<small>' + esc(r.tracking) + '</small>' : r.canTrack === false ? '' : '<small>no tracking</small>') + '</td><td>' + esc(r.status) + '</td><td class="note">' + esc(r.note) + '</td></tr>';
+  return '<tr><td>' + pill(r) + '</td><td>' + hl(r.sheet) + '</td><td>' + esc(r.row) + '</td><td>' + hl(r.product) + (r.size ? '<small>' + hl(r.size) + '</small>' : '') + (r.n > 1 ? '<small>' + r.n + ' rows</small>' : '') + '</td><td>' + esc(r.date) + '</td><td class="num">' + esc(money(r)) + '</td><td>' + (hl(r.orderNo) || '<small>no order no.</small>') + (r.tracking ? '<small>' + hl(r.tracking) + '</small>' : r.canTrack === false ? '' : '<small>no tracking</small>') + '</td><td>' + hl(r.status) + '</td><td class="note">' + hl(r.note) + '</td></tr>';
 }
 function tableHtml(list, sortable, limit) {
   var hs = [["Age", "age"], ["Sheet", "sheet"], ["Row", "row"], ["Product", "product"], ["Order date", "date"], ["Amount", "amount"], ["Order no. and tracking", "order"], ["Status in sheet", "status"], ["Note", ""]];
@@ -509,7 +534,7 @@ function pgOverview() {
   var B = visible(), by = bySheet(B), keys = Object.keys(by).sort(function (a, b) { return by[b].n - by[a].n; });
   var cnt = count(B), val = sum(B, function (r) { return r.cur === "INR" ? r.amount : 0; }), old = Math.max.apply(null, B.map(function (r) { return r.age; }).concat([0]));
   var o90 = count(B.filter(function (r) { return r.age > 90; })), mixN = count(B.filter(function (r) { return r.cur !== "INR"; }));
-  var diff = data.prev === null || data.prev === undefined ? null : cnt - data.prev;
+  var diff = data.prev === null || data.prev === undefined ? null : count(baseVisible()) - data.prev;
   var oldest = B.slice().sort(function (a, b) { return b.age - a.age || b.amount - a.amount; }).slice(0, 5);
   function kp(ic, nm, v, chip, cls) { return '<div class="card"><div class="k-h"><span>' + ic + '</span>' + nm + '</div><div class="k-b"><b>' + v + '</b><span class="pill ' + cls + '">' + chip + '</span></div></div>'; }
   return banner() + '<div class="hello"><div><h1>Welcome back!</h1><p>Here’s what is late today. Counted to ' + esc(data.asOf) + '.</p></div><div class="btns"><button class="btn soft" type="button" data-act="copy">Copy chase list</button><button class="btn pri" type="button" data-act="csv">Export CSV</button></div></div>' +
@@ -530,7 +555,31 @@ function filtersBar() {
 }
 function pgOrders() {
   var L = filtered();
-  return banner() + '<div class="hello"><div><h1>Pending orders</h1><p id="cnt">' + count(L) + ' lines, ' + inr(sum(L, function (r) { return r.cur === "INR" ? r.amount : 0; })) + ' at order price</p></div><div class="btns"><button class="btn soft" type="button" data-act="copy">Copy chase list</button><button class="btn pri" type="button" data-act="csv">Export CSV</button></div></div><div class="card">' + filtersBar() + '<div id="tbl">' + tableHtml(L, true, st.limit) + '</div></div>' + foot();
+  return banner() + '<div class="hello"><div><h1>Pending orders</h1><p id="cnt">' + count(L) + ' lines, ' + inr(sum(L, function (r) { return r.cur === "INR" ? r.amount : 0; })) + ' at order price</p></div><div class="btns"><button class="btn soft" type="button" data-act="copy">Copy chase list</button><button class="btn pri" type="button" data-act="csv">Export CSV</button></div></div><div class="card">' + filtersBar() + '<div class="filters"><input class="tbl-search" id="oq" type="search" placeholder="Filter this table…" aria-label="Filter this table" value="' + esc(st.q) + '"></div><div id="tbl">' + tableHtml(L, true, st.limit) + '</div></div>' + foot();
+}
+function searchRows() {
+  var q = st.sq.trim().toLowerCase();
+  HL = q ? q.split(/\s+/) : [];
+  if (!q) return [];
+  var pool = st.sdate ? visible() : baseVisible();
+  return pool.filter(function (r) {
+    var hay = (st.scope === "product" ? r.product + " " + r.size : st.scope === "numbers" ? r.orderNo + " " + r.tracking : [r.sheet, r.row, r.product, r.size, r.orderNo, r.tracking, r.status, r.note, r.date].join(" ")).toLowerCase();
+    return HL.every(function (w) { return hay.indexOf(w) >= 0; });
+  }).sort(function (a, b) { return b.age - a.age; });
+}
+function searchResultsHtml() {
+  if (!st.sq.trim()) { HL = []; return '<div class="empty">Type a product, size, order number, tracking number or sheet name.<br>Several words narrow the result, for example <b>cloud 6 uk 9</b>.</div>'; }
+  var L = searchRows();
+  var out = '<div class="sub"><b>' + count(L) + '</b> matching lines' + (L.length ? ', ' + inr(sum(L, function (r) { return r.cur === "INR" ? r.amount : 0; })) + ' at order price' : '') + '</div>' + tableHtml(L, false, 100);
+  HL = [];
+  return out;
+}
+function pgSearch() {
+  var sc = [["all", "Everything"], ["product", "Product and size"], ["numbers", "Order and tracking no."]];
+  return banner() + '<div class="hello"><div><h1>Search</h1><p>Find any pending order. This searches the pending orders loaded from your sheets, not delivered ones.</p></div></div><div class="card">' +
+    '<input class="big-search" id="sq" type="search" placeholder="Search product, size, order no., tracking, sheet…" aria-label="Search orders" value="' + esc(st.sq) + '" autocomplete="off">' +
+    '<div class="filters">' + sc.map(function (s) { return '<button type="button" data-scope="' + s[0] + '" aria-pressed="' + (st.scope === s[0]) + '">' + s[1] + '</button>'; }).join("") +
+    '<label class="chk" style="margin:0;padding:6px 12px"><input type="checkbox" id="sdt"' + (st.sdate ? " checked" : "") + '><span>Only inside the date filter above</span></label></div><div id="sres">' + searchResultsHtml() + '</div></div>' + foot();
 }
 function pgSheets() {
   var B = visible(), by = bySheet(B), tot = count(B) || 1, keys = Object.keys(by).sort(function (a, b) { return by[b].n - by[a].n; });
@@ -570,27 +619,59 @@ function csv() {
   var rows = filtered().map(function (r) { return [r.age, r.sheet, r.row, r.product, r.size, r.date, r.amount, r.cur, r.orderNo, r.tracking, r.status, r.note].map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(","); });
   var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([[head.join(",")].concat(rows).join("\n")], { type: "text/csv" })); a.download = "pending-orders.csv"; a.click();
 }
+function monthLabel(k) { return new Date(k + "-01T00:00:00Z").toLocaleString("en", { month: "short", year: "numeric", timeZone: "UTC" }); }
+function fbarHtml() {
+  var m = {}; baseVisible().forEach(function (r) { var k = r.date.slice(0, 7); m[k] = (m[k] || 0) + r.n; });
+  if (st.month !== "all" && m[st.month] === undefined) m[st.month] = 0;
+  var keys = Object.keys(m).sort().reverse(), on = st.month !== "all" || st.from || st.to;
+  return '<span class="lbl">Order date</span><select id="fm" aria-label="Month">' + '<option value="all">All months</option>' + keys.map(function (k) { return '<option value="' + k + '"' + (st.month === k ? " selected" : "") + '>' + monthLabel(k) + ' (' + m[k] + ')</option>'; }).join("") + '</select>' +
+    '<label>From <input type="date" id="ff" value="' + esc(st.from) + '"></label><label>To <input type="date" id="ft" value="' + esc(st.to) + '"></label>' +
+    (on ? '<button class="btn soft" type="button" data-act="fclear">Clear dates</button>' : "") + '<span class="cnt">Showing ' + count(visible()) + ' of ' + count(baseVisible()) + ' pending lines</span>';
+}
+function effectiveDark() { return cfg.theme === "dark" || (cfg.theme === "auto" && !!(window.matchMedia && window.matchMedia("(prefers-color-scheme:dark)").matches)); }
+function applyTheme() {
+  var r = document.documentElement;
+  if (cfg.theme === "auto") r.removeAttribute("data-theme"); else r.setAttribute("data-theme", cfg.theme);
+  var dark = effectiveDark();
+  document.querySelectorAll("[data-th]").forEach(function (b) { b.setAttribute("aria-pressed", String((b.getAttribute("data-th") === "dark") === dark)); });
+}
 function render() {
   document.querySelectorAll("#nav a").forEach(function (a) { a.classList.toggle("on", a.getAttribute("data-nav") === st.view); });
-  $("crumb").textContent = { overview: "Overview", orders: "Pending orders", sheets: "Sheets", checks: "Data checks", settings: "Settings" }[st.view];
-  var f = { overview: pgOverview, orders: pgOrders, sheets: pgSheets, checks: pgChecks, settings: pgSettings }[st.view];
-  var ae = document.activeElement;
-  if (st.view === "settings" && ae && /INPUT|SELECT/.test(ae.tagName) && ae.id) return;   // do not wipe what you are typing
-  $("page").innerHTML = f();
+  $("crumb").textContent = { overview: "Overview", search: "Search", orders: "Pending orders", sheets: "Sheets", checks: "Data checks", settings: "Settings" }[st.view];
+  var f = { overview: pgOverview, search: pgSearch, orders: pgOrders, sheets: pgSheets, checks: pgChecks, settings: pgSettings }[st.view];
+  var ae = document.activeElement, aid = ae && ae.id;
+  if (st.view === "settings" && ae && /INPUT|SELECT/.test(ae.tagName) && aid) return;   // do not wipe what you are typing
+  var html;
+  try { html = f(); }
+  catch (e) { if (window.console) console.error(e); html = '<div class="card"><h2>Something went wrong showing this page</h2><p class="sub">' + esc(e && e.message || e) + '</p><button class="btn pri" type="button" data-act="reload">Reload</button></div>'; }
+  $("page").innerHTML = html;
+  var fb = $("fbar"); fb.style.display = st.view === "settings" ? "none" : "flex";
+  try { fb.innerHTML = fbarHtml(); } catch (e2) { fb.innerHTML = ""; }
+  st.rendered = true;
+  applyTheme();
   updateStatus();
+  if (aid && /^(fm|ff|ft)$/.test(aid) && $(aid) && $(aid).focus) $(aid).focus();
 }
-function go(v) { st.view = v; st.limit = 100; if (location.hash !== "#" + v) location.hash = "#" + v; else render(); }
-function route() { var h = (location.hash || "#overview").slice(1); st.view = { overview: 1, orders: 1, sheets: 1, checks: 1, settings: 1 }[h] ? h : "overview"; render(); }
+function go(v) { st.view = v; st.limit = 100; render(); if (location.hash !== "#" + v) location.hash = "#" + v; }
+function route() {
+  var h = (location.hash || "#overview").slice(1), v = { overview: 1, search: 1, orders: 1, sheets: 1, checks: 1, settings: 1 }[h] ? h : "overview";
+  if (v === st.view && st.rendered) return;      // go() already drew this page
+  st.view = v; st.limit = 100; render();
+}
 
 document.addEventListener("click", function (e) {
-  var t = e.target.closest ? e.target.closest("[data-act],[data-go],[data-sheet],[data-band],[data-k],[data-trend],[data-chk],.js-sync") : null;
+  var t = e.target.closest ? e.target.closest("[data-act],[data-go],[data-sheet],[data-band],[data-k],[data-trend],[data-chk],[data-th],[data-scope],.js-sync") : null;
   if (!t) return;
+  if (t.hasAttribute("data-th")) { cfg.theme = t.getAttribute("data-th"); saveCfg(); applyTheme(); return; }
+  if (t.hasAttribute("data-scope")) { st.scope = t.getAttribute("data-scope"); render(); var sq0 = $("sq"); if (sq0 && sq0.focus) sq0.focus(); return; }
   if (t.classList.contains("js-sync")) { sync(true); return; }
   if (t.hasAttribute("data-trend")) { st.trend = t.getAttribute("data-trend"); render(); return; }
   if (t.hasAttribute("data-chk")) { st.chk = t.getAttribute("data-chk"); st.limit = 100; render(); return; }
   if (t.hasAttribute("data-k")) { var k = t.getAttribute("data-k"); if (st.sk === k) st.asc = !st.asc; else { st.sk = k; st.asc = false; } render(); return; }
   var act = t.getAttribute("data-act");
   if (act === "more") { st.limit += 100; render(); return; }
+  if (act === "reload") { location.reload(); return; }
+  if (act === "fclear") { st.month = "all"; st.from = ""; st.to = ""; render(); return; }
   if (act === "csv") { csv(); return; }
   if (act === "copy") { (navigator.clipboard ? navigator.clipboard.writeText(chaseText()) : Promise.reject()).then(function () { toast("Chase list copied"); }, function () { toast("Copy is not allowed here"); }); return; }
   if (act === "save") {
@@ -608,20 +689,34 @@ document.addEventListener("mousemove", function (e) {
   tip.textContent = t.getAttribute("data-tip"); tip.style.display = "block";
   tip.style.left = Math.min(e.clientX + 14, window.innerWidth - 270) + "px"; tip.style.top = (e.clientY + 16) + "px";
 });
-$("gq").addEventListener("input", function (e) { st.q = e.target.value; st.limit = 100; if (st.view !== "orders") { go("orders"); return; } render(); });
-$("themeBtn").addEventListener("click", function () {
-  var r = document.documentElement, dark = r.getAttribute("data-theme") === "dark" || (!r.getAttribute("data-theme") && window.matchMedia("(prefers-color-scheme:dark)").matches);
-  r.setAttribute("data-theme", dark ? "light" : "dark");
+$("gq").addEventListener("input", function (e) {
+  var v = e.target.value;
+  if (!v) return;
+  st.sq = v; e.target.value = ""; go("search");
+  var f = $("sq"); if (f && f.focus) { f.focus(); if (f.setSelectionRange) f.setSelectionRange(v.length, v.length); }
 });
+document.addEventListener("input", function (e) {
+  var id = e.target && e.target.id;
+  if (id === "sq") { st.sq = e.target.value; $("sres").innerHTML = searchResultsHtml(); }
+  else if (id === "oq") { st.q = e.target.value; st.limit = 100; var L = filtered(); $("tbl").innerHTML = tableHtml(L, true, st.limit); $("cnt").textContent = count(L) + " lines, " + inr(sum(L, function (r) { return r.cur === "INR" ? r.amount : 0; })) + " at order price"; }
+});
+document.addEventListener("change", function (e) {
+  var id = e.target && e.target.id;
+  if (id === "fm") { st.month = e.target.value; st.from = ""; st.to = ""; st.limit = 100; render(); }
+  else if (id === "ff" || id === "ft") { if (id === "ff") st.from = e.target.value; else st.to = e.target.value; if (st.from && st.to && st.from > st.to) { var x = st.from; st.from = st.to; st.to = x; } st.month = "all"; st.limit = 100; render(); }
+  else if (id === "sdt") { st.sdate = e.target.checked; $("sres").innerHTML = searchResultsHtml(); }
+});
+window.addEventListener("error", function (e) { if (window.console) console.error(e.error || e.message); toast("Something went wrong. Reload the page if it looks wrong."); });
 window.addEventListener("hashchange", route);
 document.addEventListener("visibilitychange", function () { if (!document.hidden && cfg.key && nextAt && Date.now() > nextAt) sync(false); });
 setInterval(updateStatus, 1000);
 
+applyTheme();
 useSnapshot("");
 route();
 schedule();
 if (cfg.key) sync(false);
-window.__app = { sync: sync, data: function () { return data; }, cfg: cfg, transform: transform, parseDate: parseDate, SOURCES: SOURCES, st: st, render: render, visible: visible, checks: checks };
+window.__app = { sync: sync, data: function () { return data; }, cfg: cfg, transform: transform, parseDate: parseDate, SOURCES: SOURCES, st: st, render: render, visible: visible, baseVisible: baseVisible, checks: checks, searchRows: searchRows, applyTheme: applyTheme };
 })();
 </script>
 </body>
