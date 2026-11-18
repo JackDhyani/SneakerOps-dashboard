@@ -148,6 +148,7 @@ mark{background:#ffe08a;color:#15171f;border-radius:3px;padding:0 1px}
       <a href="#overview" data-nav="overview"><i>▦</i>Overview</a>
       <a href="#search" data-nav="search"><i>⌕</i>Search</a>
       <a href="#orders" data-nav="orders"><i>☰</i>Pending orders</a>
+      <a href="#rates" data-nav="rates"><i>🏷</i>Swipe rates</a>
       <a href="#sheets" data-nav="sheets"><i>▤</i>Sheets</a>
       <a href="#checks" data-nav="checks"><i>⚑</i>Data checks<span class="badge" id="chkBadge"></span></a>
       <a href="#settings" data-nav="settings"><i>⚙</i>Settings</a>
@@ -309,7 +310,7 @@ var cfg = (function () {
   return { key: c.key || DEFAULT_KEY, interval: c.interval || DEFAULT_INTERVAL, extras: !!c.extras, theme: c.theme === "light" || c.theme === "dark" ? c.theme : "auto" };
 })();
 function saveCfg() { ls("sneakerops.v2", JSON.stringify(cfg)); }
-var st = { view: "overview", sheet: "all", band: "all", q: "", sk: "age", asc: false, limit: 100, trend: "month", chk: "tracking", month: "all", from: "", to: "", sq: "", scope: "all", sdate: false, rendered: false };
+var st = { view: "overview", sheet: "all", band: "all", q: "", sk: "age", asc: false, limit: 100, trend: "month", chk: "tracking", month: "all", from: "", to: "", sq: "", scope: "all", sdate: false, rateVendor: "all", rendered: false };
 var data = { rows: [], asOf: SNAP.asOf, mode: "snapshot", syncedAt: null, sources: [], warnings: [], prev: null, error: "" };
 var syncing = false, timer = null, nextAt = 0;
 
@@ -601,6 +602,168 @@ function pgSearch() {
     '<div class="filters">' + sc.map(function (s) { return '<button type="button" data-scope="' + s[0] + '" aria-pressed="' + (st.scope === s[0]) + '">' + s[1] + '</button>'; }).join("") +
     '<label class="chk" style="margin:0;padding:6px 12px"><input type="checkbox" id="sdt"' + (st.sdate ? " checked" : "") + '><span>Only inside the date filter above</span></label></div><div id="sres">' + searchResultsHtml() + '</div></div>' + foot();
 }
+var VENDOR_SWIPE_RATES = [
+  {
+    vendor: "SHIVIL",
+    color: "#5b4ef0",
+    items: [
+      { name: "Poizon Rate", formula: "RMB × 15.30 + ₹2,000", tag: "POIZON", notes: "Standard Poizon orders", cur: "RMB", multiplier: 15.3, fee: 2000 },
+      { name: "US Orders", formula: "USD × 98 + ₹2,000", tag: "US", notes: "US websites and procurement", cur: "USD", multiplier: 98, fee: 2000 },
+      { name: "ON Running", formula: "USD × 93 + ₹1,500", tag: "ON", notes: "ON running official orders", cur: "USD", multiplier: 93, fee: 1500 },
+      { name: "GOAT / StockX", formula: "USD × 98 + ₹2,000", tag: "STOCKX / GOAT", notes: "GOAT & StockX platform purchases", cur: "USD", multiplier: 98, fee: 2000 }
+    ]
+  },
+  {
+    vendor: "SARTHAK",
+    color: "#d97706",
+    items: [
+      { name: "USD Orders", formula: "(Daily USD Rate + 5.5) + ₹2,150", tag: "DAILY USD", notes: "Floating: Base Daily USD Rate + 5.5 markup + ₹2,150 handling fee", cur: "USD", dynamic: "usd", addMarkup: 5.5, fee: 2150 },
+      { name: "Poizon Orders", formula: "(Current RMB + 1.35) + ₹2,150", tag: "POIZON RMB", notes: "Floating: Current RMB rate + 1.35 markup + ₹2,150 handling fee", cur: "RMB", dynamic: "rmb", addMarkup: 1.35, fee: 2150 }
+    ]
+  },
+  {
+    vendor: "SAMEER",
+    color: "#059669",
+    items: [
+      { name: "Poizon Orders", formula: "RMB × 15.50 + ₹2,100", tag: "POIZON", notes: "Standard Sameer Poizon rate", cur: "RMB", multiplier: 15.5, fee: 2100 }
+    ]
+  },
+  {
+    vendor: "NAVYA",
+    color: "#db2777",
+    items: [
+      { name: "Standard US", formula: "USD × 93 + ₹1,550", tag: "STANDARD", notes: "Standard pairs & orders", cur: "USD", multiplier: 93, fee: 1550 },
+      { name: "Limited Edition Shoes", formula: "USD × 98 + ₹1,800", tag: "LIMITED EDITION", notes: "Hype / limited edition pairs", cur: "USD", multiplier: 98, fee: 1800 },
+      { name: "Alo Yoga / Clothes", formula: "Retail USD × 99", tag: "ALO / CLOTHES", notes: "Alo Yoga & apparel orders (no fixed fee)", cur: "USD", multiplier: 99, fee: 0 }
+    ]
+  },
+  {
+    vendor: "GURKIRAT",
+    color: "#4f46e5",
+    items: [
+      { name: "Coach", formula: "USD × 98 + ₹1,500 (by weight)", tag: "COACH", notes: "Coach bags & items; fee adjusts according to parcel weight", cur: "USD", multiplier: 98, fee: 1500 },
+      { name: "StockX Rate", formula: "Rate × 98 + ₹3,000", tag: "STOCKX", notes: "StockX orders swipe rate", cur: "USD", multiplier: 98, fee: 3000 }
+    ]
+  }
+];
+
+function calcOptionsHtml() {
+  var out = [];
+  VENDOR_SWIPE_RATES.forEach(function (v, vi) {
+    v.items.forEach(function (it, ii) {
+      out.push('<option value="' + vi + '-' + ii + '">' + esc(v.vendor) + ' — ' + esc(it.name) + ' (' + esc(it.formula) + ')</option>');
+    });
+  });
+  return out.join("");
+}
+
+function runCalc() {
+  var sel = $("calcRule");
+  if (!sel) return;
+  var parts = (sel.value || "0-0").split("-");
+  var vi = +parts[0], ii = +parts[1];
+  var v = VENDOR_SWIPE_RATES[vi];
+  var it = v && v.items[ii];
+  if (!it) return;
+
+  var curLbl = $("calcCurLbl");
+  if (curLbl) curLbl.textContent = it.cur || "USD";
+
+  var dailyWrap = $("calcDailyWrap");
+  if (dailyWrap) {
+    dailyWrap.style.display = it.dynamic ? "block" : "none";
+  }
+
+  var price = +$("calcPrice").value || 0;
+  var total = 0, breakdown = "";
+
+  if (it.dynamic === "usd") {
+    var baseRate = +$("calcDaily").value || 88;
+    var effectiveRate = baseRate + (it.addMarkup || 0);
+    total = Math.round(price * effectiveRate + (it.fee || 0));
+    breakdown = price + " USD × (" + baseRate + " + " + it.addMarkup + ") + ₹" + it.fee.toLocaleString("en-IN") + " = ₹" + total.toLocaleString("en-IN");
+  } else if (it.dynamic === "rmb") {
+    var baseRate = +$("calcDaily").value || 12;
+    var effectiveRate = baseRate + (it.addMarkup || 0);
+    total = Math.round(price * effectiveRate + (it.fee || 0));
+    breakdown = price + " RMB × (" + baseRate + " + " + it.addMarkup + ") + ₹" + it.fee.toLocaleString("en-IN") + " = ₹" + total.toLocaleString("en-IN");
+  } else {
+    total = Math.round(price * (it.multiplier || 0) + (it.fee || 0));
+    breakdown = price + " " + it.cur + " × " + it.multiplier + (it.fee > 0 ? " + ₹" + it.fee.toLocaleString("en-IN") : "") + " = ₹" + total.toLocaleString("en-IN");
+  }
+
+  var totEl = $("calcTotal");
+  if (totEl) totEl.textContent = "₹" + total.toLocaleString("en-IN");
+  var bdEl = $("calcFormulaBreakdown");
+  if (bdEl) bdEl.textContent = "Formula breakdown: " + breakdown;
+}
+
+function pgRates() {
+  var list = VENDOR_SWIPE_RATES;
+  if (st.rateVendor && st.rateVendor !== "all") {
+    list = list.filter(function (v) { return v.vendor === st.rateVendor; });
+  }
+
+  var vendorPills = '<div class="filters" style="margin-bottom:16px"><button type="button" data-rate-vendor="all" aria-pressed="' + (st.rateVendor === "all" || !st.rateVendor) + '">All vendors</button>' +
+    VENDOR_SWIPE_RATES.map(function (v) {
+      return '<button type="button" data-rate-vendor="' + v.vendor + '" aria-pressed="' + (st.rateVendor === v.vendor) + '">' + v.vendor + ' (' + v.items.length + ')</button>';
+    }).join("") + '</div>';
+
+  var cardsHtml = list.map(function (v) {
+    return '<div class="card" style="margin-bottom:18px">' +
+      '<div class="head" style="margin-bottom:14px">' +
+        '<div style="display:flex;align-items:center;gap:10px">' +
+          '<span class="logo" style="background:' + v.color + ';width:32px;height:32px;font-size:14px;border-radius:8px">' + v.vendor.charAt(0) + '</span>' +
+          '<div><h2 style="font-size:18px;margin:0">' + v.vendor + '</h2><small style="color:var(--mute)">' + v.items.length + ' rate formulas</small></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="scroll"><table style="min-width:680px"><thead><tr>' +
+        '<th>Channel / Item</th>' +
+        '<th>Swipe Formula</th>' +
+        '<th>Base / Multiplier</th>' +
+        '<th>Handling / Fee</th>' +
+        '<th>Notes</th>' +
+        '<th style="text-align:right">Action</th>' +
+      '</tr></thead><tbody>' +
+      v.items.map(function (item) {
+        var baseStr = item.multiplier ? item.multiplier + ' (' + item.cur + ')' : item.addMarkup ? '+' + item.addMarkup + ' on daily' : '-';
+        var feeStr = item.fee > 0 ? '₹' + item.fee.toLocaleString('en-IN') : 'None';
+        return '<tr>' +
+          '<td><b>' + esc(item.name) + '</b><small><span class="pill info" style="margin-top:3px">' + esc(item.tag) + '</span></small></td>' +
+          '<td><code style="font-size:13px;font-weight:700;padding:4px 8px;background:var(--soft);color:var(--pri)">' + esc(item.formula) + '</code></td>' +
+          '<td>' + esc(baseStr) + '</td>' +
+          '<td><b>' + esc(feeStr) + '</b></td>' +
+          '<td class="note">' + esc(item.notes) + '</td>' +
+          '<td style="text-align:right"><button class="btn soft" type="button" data-copy-rate="' + esc(v.vendor + ' ' + item.name + ': ' + item.formula) + '" style="padding:5px 12px;font-size:12px">Copy</button></td>' +
+        '</tr>';
+      }).join("") +
+      '</tbody></table></div>' +
+    '</div>';
+  }).join("");
+
+  return banner() +
+    '<div class="hello">' +
+      '<div><h1>Vendor swipe rates</h1><p>Active swipe formulas, conversion rates, and handling charges per vendor.</p></div>' +
+    '</div>' +
+    '<div class="card" id="rateCalcBox" style="margin-bottom:18px;background:var(--soft);border:1px solid var(--line)">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+        '<div><h2 style="font-size:15px;margin:0">🖩 Live Swipe Calculator</h2><small style="color:var(--mute)">Instantly estimate INR cost based on vendor formula</small></div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end">' +
+        '<div><label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Vendor & Rule</label><select id="calcRule" style="width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)">' +
+          calcOptionsHtml() +
+        '</select></div>' +
+        '<div><label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Item Price (<span id="calcCurLbl">RMB</span>)</label><input type="number" id="calcPrice" placeholder="e.g. 500" value="500" style="width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)"></div>' +
+        '<div id="calcDailyWrap" style="display:none"><label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Base Daily Rate</label><input type="number" id="calcDaily" placeholder="88.0" value="88" step="0.1" style="width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)"></div>' +
+        '<div><div style="background:var(--card);border-radius:12px;padding:8px 14px;border:1px solid var(--line)"><small style="color:var(--mute);display:block;font-size:11px">Estimated Total</small><b id="calcTotal" style="font-size:20px;color:var(--good)">₹9,650</b></div></div>' +
+      '</div>' +
+      '<div id="calcFormulaBreakdown" style="margin-top:10px;font-size:12px;color:var(--mute)">Formula breakdown: 500 RMB × 15.30 + ₹2,000 = ₹9,650</div>' +
+    '</div>' +
+    vendorPills +
+    cardsHtml +
+    foot();
+}
+
 function pgSheets() {
   var B = visible(), by = bySheet(B), tot = count(B) || 1, keys = Object.keys(by).sort(function (a, b) { return by[b].n - by[a].n; });
   var cards = keys.map(function (k) { var p = Math.round(by[k].n / tot * 100); return '<button class="sheet-card card" type="button" data-sheet="' + esc(k) + '" data-go="orders"><div class="t">' + esc(k) + '</div><div class="big">' + by[k].n + ' lines</div><div class="prog"><i style="width:' + p + '%"></i></div><div class="m"><span>' + inr(by[k].v) + '</span><span>oldest ' + by[k].o + ' d</span></div></button>'; }).join("");
@@ -657,30 +820,31 @@ function applyTheme() {
 }
 function render() {
   document.querySelectorAll("#nav a").forEach(function (a) { a.classList.toggle("on", a.getAttribute("data-nav") === st.view); });
-  $("crumb").textContent = { overview: "Overview", search: "Search", orders: "Pending orders", sheets: "Sheets", checks: "Data checks", settings: "Settings" }[st.view];
-  var f = { overview: pgOverview, search: pgSearch, orders: pgOrders, sheets: pgSheets, checks: pgChecks, settings: pgSettings }[st.view];
+  $("crumb").textContent = { overview: "Overview", search: "Search", orders: "Pending orders", rates: "Swipe rates", sheets: "Sheets", checks: "Data checks", settings: "Settings" }[st.view];
+  var f = { overview: pgOverview, search: pgSearch, orders: pgOrders, rates: pgRates, sheets: pgSheets, checks: pgChecks, settings: pgSettings }[st.view];
   var ae = document.activeElement, aid = ae && ae.id;
   if (st.view === "settings" && ae && /INPUT|SELECT/.test(ae.tagName) && aid) return;
   var html;
   try { html = f(); }
   catch (e) { if (window.console) console.error(e); html = '<div class="card"><h2>Something went wrong showing this page</h2><p class="sub">' + esc(e && e.message || e) + '</p><button class="btn pri" type="button" data-act="reload">Reload</button></div>'; }
   $("page").innerHTML = html;
-  var fb = $("fbar"); fb.style.display = st.view === "settings" ? "none" : "flex";
+  var fb = $("fbar"); fb.style.display = (st.view === "settings" || st.view === "rates") ? "none" : "flex";
   try { fb.innerHTML = fbarHtml(); } catch (e2) { fb.innerHTML = ""; }
   st.rendered = true;
   applyTheme();
   updateStatus();
+  if (st.view === "rates") runCalc();
   if (aid && /^(fm|ff|ft)$/.test(aid) && $(aid) && $(aid).focus) $(aid).focus();
 }
 function go(v) { st.view = v; st.limit = 100; render(); if (location.hash !== "#" + v) location.hash = "#" + v; }
 function route() {
-  var h = (location.hash || "#overview").slice(1), v = { overview: 1, search: 1, orders: 1, sheets: 1, checks: 1, settings: 1 }[h] ? h : "overview";
+  var h = (location.hash || "#overview").slice(1), v = { overview: 1, search: 1, orders: 1, rates: 1, sheets: 1, checks: 1, settings: 1 }[h] ? h : "overview";
   if (v === st.view && st.rendered) return;
   st.view = v; st.limit = 100; render();
 }
 
 document.addEventListener("click", function (e) {
-  var t = e.target.closest ? e.target.closest("[data-act],[data-go],[data-sheet],[data-band],[data-k],[data-trend],[data-chk],[data-th],[data-scope],[data-kpi],[data-kpi-chip],[data-range],.js-sync") : null;
+  var t = e.target.closest ? e.target.closest("[data-act],[data-go],[data-sheet],[data-band],[data-k],[data-trend],[data-chk],[data-th],[data-scope],[data-kpi],[data-kpi-chip],[data-range],[data-rate-vendor],[data-copy-rate],.js-sync") : null;
   if (!t) return;
   if (t.hasAttribute("data-th")) { cfg.theme = t.getAttribute("data-th"); saveCfg(); applyTheme(); return; }
   if (t.hasAttribute("data-scope")) { st.scope = t.getAttribute("data-scope"); render(); var sq0 = $("sq"); if (sq0 && sq0.focus) sq0.focus(); return; }
@@ -688,6 +852,20 @@ document.addEventListener("click", function (e) {
   if (t.hasAttribute("data-trend")) { st.trend = t.getAttribute("data-trend"); render(); return; }
   if (t.hasAttribute("data-chk")) { st.chk = t.getAttribute("data-chk"); st.limit = 100; render(); return; }
   if (t.hasAttribute("data-k")) { var k = t.getAttribute("data-k"); if (st.sk === k) st.asc = !st.asc; else { st.sk = k; st.asc = false; } render(); return; }
+  if (t.hasAttribute("data-rate-vendor")) {
+    st.rateVendor = t.getAttribute("data-rate-vendor");
+    render();
+    return;
+  }
+  if (t.hasAttribute("data-copy-rate")) {
+    var cr = t.getAttribute("data-copy-rate");
+    (navigator.clipboard ? navigator.clipboard.writeText(cr) : Promise.reject()).then(function () {
+      toast("Formula copied to clipboard!");
+    }, function () {
+      toast("Formula copied");
+    });
+    return;
+  }
   if (t.hasAttribute("data-kpi-chip")) {
     var ck = t.getAttribute("data-kpi-chip");
     if (ck === "mix") { st.chk = "mix"; go("checks"); return; }
@@ -747,12 +925,14 @@ document.addEventListener("input", function (e) {
   var id = e.target && e.target.id;
   if (id === "sq") { st.sq = e.target.value; $("sres").innerHTML = searchResultsHtml(); }
   else if (id === "oq") { st.q = e.target.value; st.limit = 100; var L = filtered(); $("tbl").innerHTML = tableHtml(L, true, st.limit); $("cnt").textContent = count(L) + " lines, " + inr(sum(L, function (r) { return r.cur === "INR" ? r.amount : 0; })) + " at order price"; }
+  else if (id === "calcPrice" || id === "calcDaily") { runCalc(); }
 });
 document.addEventListener("change", function (e) {
   var id = e.target && e.target.id;
   if (id === "fm") { st.month = e.target.value; st.from = ""; st.to = ""; st.limit = 100; render(); }
   else if (id === "ff" || id === "ft") { if (id === "ff") st.from = e.target.value; else st.to = e.target.value; if (st.from && st.to && st.from > st.to) { var x = st.from; st.from = st.to; st.to = x; } st.month = "all"; st.limit = 100; render(); }
   else if (id === "sdt") { st.sdate = e.target.checked; $("sres").innerHTML = searchResultsHtml(); }
+  else if (id === "calcRule") { runCalc(); }
 });
 document.addEventListener("keydown", function (e) {
   if ((e.key === "Enter" || e.key === " ") && e.target && e.target.classList && e.target.classList.contains("kpi-card")) {
