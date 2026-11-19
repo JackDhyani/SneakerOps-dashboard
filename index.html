@@ -573,10 +573,43 @@ function pgOverview() {
     '<div class="card"><div class="head"><div><h2>Oldest pending orders</h2><div class="sub">Chase these first</div></div><button class="link" type="button" data-go="orders">View all</button></div>' + tableHtml(oldest, false) + '</div>' + foot();
 }
 function filtersBar() {
-  var by = bySheet(visible()), keys = Object.keys(by).sort(function (a, b) { return by[b].n - by[a].n; });
-  var bList = [["all", "All (>20 days)"], [0, BN[0]], [1, BN[1]], [2, BN[2]], [3, BN[3]], [4, BN[4]], ["o90", "Over 90 days"]];
-  return '<div class="filters"><button type="button" data-sheet="all" aria-pressed="' + (st.sheet === "all") + '">All sheets</button>' + keys.map(function (k) { return '<button type="button" data-sheet="' + esc(k) + '" aria-pressed="' + (st.sheet === k) + '">' + esc(k) + ' · ' + by[k].n + '</button>'; }).join("") + '</div>' +
-    '<div class="filters">' + bList.map(function (b) { return '<button type="button" data-band="' + b[0] + '" aria-pressed="' + (String(st.band) === String(b[0])) + '">' + b[1] + '</button>'; }).join("") + '</div>';
+  var V = visible();
+  var byAll = bySheet(V), keys = Object.keys(byAll).sort(function (a, b) { return byAll[b].n - byAll[a].n; });
+  var totAll = count(V);
+  var sheetPool = (st.sheet === "all") ? V : V.filter(function (r) { return r.sheet === st.sheet; });
+  var sheetTot = count(sheetPool);
+  var bb = [0, 0, 0, 0, 0], bo90 = 0;
+  sheetPool.forEach(function (r) {
+    bb[bandOf(r.age)] += r.n;
+    if (r.age > 90) bo90 += r.n;
+  });
+  var bandPool = (st.band === "all") ? V : V.filter(function (r) {
+    if (st.band === "o90") return r.age > 90;
+    if (st.band === "20-30") return r.age >= 20 && r.age <= 30;
+    if (st.band === "31-45") return r.age >= 31 && r.age <= 45;
+    if (st.band === "20-45") return r.age >= 20 && r.age <= 45;
+    return bandOf(r.age) === +st.band;
+  });
+  var byBand = bySheet(bandPool), bandTot = count(bandPool);
+  var allSheetsTxt = (st.band === "all") ? ("All sheets · " + totAll) : ("All sheets · " + bandTot + (bandTot !== totAll ? " / " + totAll : ""));
+  var bList = [
+    ["all", "All (>20 days)", sheetTot],
+    [0, BN[0], bb[0]],
+    [1, BN[1], bb[1]],
+    [2, BN[2], bb[2]],
+    [3, BN[3], bb[3]],
+    [4, BN[4], bb[4]],
+    ["o90", "Over 90 days", bo90]
+  ];
+  return '<div class="filters"><button type="button" data-sheet="all" aria-pressed="' + (st.sheet === "all") + '">' + allSheetsTxt + '</button>' +
+    keys.map(function (k) {
+      var fullN = byAll[k].n, curN = byBand[k] ? byBand[k].n : 0;
+      var countTxt = (st.band === "all") ? fullN : (curN + (curN !== fullN ? ' / ' + fullN : ''));
+      return '<button type="button" data-sheet="' + esc(k) + '" aria-pressed="' + (st.sheet === k) + '">' + esc(k) + ' · ' + countTxt + '</button>';
+    }).join("") + '</div>' +
+    '<div class="filters">' + bList.map(function (b) {
+      return '<button type="button" data-band="' + b[0] + '" aria-pressed="' + (String(st.band) === String(b[0])) + '">' + b[1] + ' · ' + b[2] + '</button>';
+    }).join("") + '</div>';
 }
 function pgOrders() {
   var L = filtered();
@@ -811,9 +844,10 @@ function fbarHtml() {
   var m = {}; baseVisible().forEach(function (r) { var k = r.date.slice(0, 7); m[k] = (m[k] || 0) + r.n; });
   if (st.month !== "all" && m[st.month] === undefined) m[st.month] = 0;
   var keys = Object.keys(m).sort().reverse(), on = st.month !== "all" || st.from || st.to;
+  var curList = (st.view === "orders") ? filtered() : visible();
   return '<span class="lbl">Order date</span><select id="fm" aria-label="Month">' + '<option value="all">All months</option>' + keys.map(function (k) { return '<option value="' + k + '"' + (st.month === k ? " selected" : "") + '>' + monthLabel(k) + ' (' + m[k] + ')</option>'; }).join("") + '</select>' +
     '<label>From <input type="date" id="ff" value="' + esc(st.from) + '"></label><label>To <input type="date" id="ft" value="' + esc(st.to) + '"></label>' +
-    (on ? '<button class="btn soft" type="button" data-act="fclear">Clear dates</button>' : "") + '<span class="cnt">Showing ' + count(visible()) + ' of ' + count(baseVisible()) + ' pending lines</span>';
+    (on ? '<button class="btn soft" type="button" data-act="fclear">Clear dates</button>' : "") + '<span class="cnt">Showing ' + count(curList) + ' of ' + count(baseVisible()) + ' pending lines</span>';
 }
 function effectiveDark() { return cfg.theme === "dark" || (cfg.theme === "auto" && !!(window.matchMedia && window.matchMedia("(prefers-color-scheme:dark)").matches)); }
 function applyTheme() {
