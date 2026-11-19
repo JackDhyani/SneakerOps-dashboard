@@ -221,10 +221,10 @@ function inr(n) { if (!n) return "₹0"; return n >= 100000 ? "₹" + (n / 10000
 function money(r) { return r.cur === "INR" ? (r.amount ? "₹" + Math.round(r.amount).toLocaleString("en-IN") : "-") : (r.amount ? r.amount.toLocaleString("en-IN") + " (¥ or ₹)" : "see note"); }
 function toast(t) { var n = $("toast"); n.textContent = t; n.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(function () { n.style.display = "none"; }, 2200); }
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
-var BN = ["20 to 45 days", "46 to 90 days", "91 to 180 days", "Over 180 days"], BS = ["20-45", "46-90", "91-180", "180+"];
-var BCLS = ["warn", "warn", "bad", "deep"], BCOL = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)"];
+var BN = ["20 to 30 days", "31 to 45 days", "46 to 90 days", "91 to 180 days", "Over 180 days"], BS = ["20-30", "31-45", "46-90", "91-180", "180+"];
+var BCLS = ["info", "warn", "warn", "bad", "deep"], BCOL = ["#38bdf8", "var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)"];
 var PAL = ["#5b4ef0", "#8b80ff", "#b7b0ff", "#f59e0b", "#34d399", "#60a5fa", "#f472b6", "#a3a3a3"];
-function bandOf(a) { return a <= 45 ? 0 : a <= 90 ? 1 : a <= 180 ? 2 : 3; }
+function bandOf(a) { return a <= 30 ? 0 : a <= 45 ? 1 : a <= 90 ? 2 : a <= 180 ? 3 : 4; }
 
 /* =====================================================================
    3. DATES AND THE PENDING RULE (same rules as the earlier checks)
@@ -339,6 +339,9 @@ function filtered() {
   return visible().filter(function (r) {
     if (st.sheet !== "all" && r.sheet !== st.sheet) return false;
     if (st.band === "o90") { if (r.age <= 90) return false; }
+    else if (st.band === "20-30") { if (r.age < 20 || r.age > 30) return false; }
+    else if (st.band === "31-45") { if (r.age < 31 || r.age > 45) return false; }
+    else if (st.band === "20-45") { if (r.age < 20 || r.age > 45) return false; }
     else if (st.band !== "all" && bandOf(r.age) !== +st.band) return false;
     if (q && [r.sheet, r.row, r.product, r.size, r.orderNo, r.tracking, r.status, r.note].join(" ").toLowerCase().indexOf(q) < 0) return false;
     return true;
@@ -349,7 +352,7 @@ function filtered() {
 }
 function bySheet(list) {
   var by = {};
-  list.forEach(function (r) { var b = by[r.sheet] || (by[r.sheet] = { n: 0, v: 0, o: 0, mix: 0, band: [0, 0, 0, 0] }); b.n += r.n; if (r.cur === "INR") b.v += r.amount; else b.mix += r.n; b.o = Math.max(b.o, r.age); b.band[bandOf(r.age)] += r.n; });
+  list.forEach(function (r) { var b = by[r.sheet] || (by[r.sheet] = { n: 0, v: 0, o: 0, mix: 0, band: [0, 0, 0, 0, 0] }); b.n += r.n; if (r.cur === "INR") b.v += r.amount; else b.mix += r.n; b.o = Math.max(b.o, r.age); b.band[bandOf(r.age)] += r.n; });
   return by;
 }
 function count(l) { return sum(l, function (r) { return r.n; }); }
@@ -466,8 +469,8 @@ function donut(by, keys) {
     keys.map(function (k, i) { return '<span data-sheet="' + esc(k) + '"><i style="background:' + PAL[Math.min(i, 7)] + '"></i>' + esc(k.replace(" X JACK", "")) + '</span>'; }).join("") + '</div>';
 }
 function barChart(list) {
-  var bb = [0, 0, 0, 0]; list.forEach(function (r) { bb[bandOf(r.age)] += r.n; });
-  var mx = Math.max.apply(null, bb) || 1, top = Math.max(4, Math.ceil(mx / 4) * 4), W = 420, H = 230, L = 38, T = 14, B = 30, bw = 54, gap = (W - L - 12 - bw * 4) / 3, o = "", i;
+  var bb = [0, 0, 0, 0, 0]; list.forEach(function (r) { bb[bandOf(r.age)] += r.n; });
+  var mx = Math.max.apply(null, bb) || 1, top = Math.max(4, Math.ceil(mx / 4) * 4), W = 420, H = 230, L = 38, T = 14, B = 30, bw = 44, gap = (W - L - 12 - bw * 5) / 4, o = "", i;
   for (i = 0; i <= 4; i++) { var yy = T + (H - T - B) * (1 - i / 4); o += '<line x1="' + L + '" x2="' + (W - 6) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--line)"/><text class="axis" x="' + (L - 6) + '" y="' + (yy + 4) + '" text-anchor="end">' + Math.round(top / 4 * i) + '</text>'; }
   var hi = bb.indexOf(mx);
   bb.forEach(function (n, j) {
@@ -571,7 +574,7 @@ function pgOverview() {
 }
 function filtersBar() {
   var by = bySheet(visible()), keys = Object.keys(by).sort(function (a, b) { return by[b].n - by[a].n; });
-  var bList = [["all", "All (>20 days)"], [0, BN[0]], [1, BN[1]], [2, BN[2]], [3, BN[3]], ["o90", "Over 90 days"]];
+  var bList = [["all", "All (>20 days)"], [0, BN[0]], [1, BN[1]], [2, BN[2]], [3, BN[3]], [4, BN[4]], ["o90", "Over 90 days"]];
   return '<div class="filters"><button type="button" data-sheet="all" aria-pressed="' + (st.sheet === "all") + '">All sheets</button>' + keys.map(function (k) { return '<button type="button" data-sheet="' + esc(k) + '" aria-pressed="' + (st.sheet === k) + '">' + esc(k) + ' · ' + by[k].n + '</button>'; }).join("") + '</div>' +
     '<div class="filters">' + bList.map(function (b) { return '<button type="button" data-band="' + b[0] + '" aria-pressed="' + (String(st.band) === String(b[0])) + '">' + b[1] + '</button>'; }).join("") + '</div>';
 }
@@ -839,7 +842,16 @@ function render() {
 }
 function go(v) { st.view = v; st.limit = 100; render(); if (location.hash !== "#" + v) location.hash = "#" + v; }
 function route() {
-  var h = (location.hash || "#overview").slice(1), v = { overview: 1, search: 1, orders: 1, rates: 1, sheets: 1, checks: 1, settings: 1 }[h] ? h : "overview";
+  var raw = (location.hash || "#overview").slice(1), parts = raw.split("?"), h = parts[0];
+  if (h === "orders2030" || h === "orders-20-30" || h === "20-30") {
+    st.view = "orders"; st.band = 0; st.sheet = "all"; st.limit = 100; render(); return;
+  }
+  var v = { overview: 1, search: 1, orders: 1, rates: 1, sheets: 1, checks: 1, settings: 1 }[h] ? h : "overview";
+  if (parts[1]) {
+    var sp = new URLSearchParams(parts[1]);
+    if (sp.has("band")) st.band = sp.get("band");
+    if (sp.has("sheet")) st.sheet = sp.get("sheet");
+  }
   if (v === st.view && st.rendered) return;
   st.view = v; st.limit = 100; render();
 }
