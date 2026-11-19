@@ -4452,7 +4452,12 @@ var SOURCES = [
 function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s === null || s === undefined ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"); }
 function sum(l, f) { return l.reduce(function (a, r) { return a + f(r); }, 0); }
-function inr(n) { if (!n) return "₹0"; return n >= 100000 ? "₹" + (n / 100000).toFixed(2) + " lakh" : "₹" + Math.round(n).toLocaleString("en-IN"); }
+function inr(n) {
+  if (!n) return "₹0";
+  if (n >= 10000000) return "₹" + (n / 10000000).toFixed(2) + " crore";
+  if (n >= 100000) return "₹" + (n / 100000).toFixed(2) + " lakh";
+  return "₹" + Math.round(n).toLocaleString("en-IN");
+}
 function money(r) { return r.cur === "INR" ? (r.amount ? "₹" + Math.round(r.amount).toLocaleString("en-IN") : "-") : (r.amount ? r.amount.toLocaleString("en-IN") + " (¥ or ₹)" : "see note"); }
 function toast(t) { var n = $("toast"); n.textContent = t; n.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(function () { n.style.display = "none"; }, 2200); }
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
@@ -4558,6 +4563,15 @@ function vendorOf(name) {
   if (s.indexOf("DYPE") >= 0) return "DYPE";
   return "OTHER";
 }
+var VENDOR_TOTALS = {
+  "SHIVIL": { barcodeCount: 14489, barcodeAmt: 292347298, cancelCount: 228, cancelAmt: 3124761, holdCount: 22, blankCount: 842, totalCount: 14717, totalAmt: 295472059 },
+  "SAMEER": { barcodeCount: 3007, barcodeAmt: 33460055, cancelCount: 57, cancelAmt: 628680, holdCount: 1, blankCount: 1702, totalCount: 3064, totalAmt: 34088735 },
+  "GURKIRAT": { barcodeCount: 78, barcodeAmt: 1343435, cancelCount: 8, cancelAmt: 126685, holdCount: 0, blankCount: 71, totalCount: 86, totalAmt: 1470120 },
+  "CDC / ZENTRA": { barcodeCount: 633, barcodeAmt: 13139670, cancelCount: 68, cancelAmt: 69186, holdCount: 0, blankCount: 626, totalCount: 701, totalAmt: 13208856 },
+  "SARTHAK": { barcodeCount: 120, barcodeAmt: 1845000, cancelCount: 4, cancelAmt: 54000, holdCount: 0, blankCount: 15, totalCount: 124, totalAmt: 1899000 },
+  "NAVYA": { barcodeCount: 85, barcodeAmt: 1420000, cancelCount: 3, cancelAmt: 42000, holdCount: 0, blankCount: 10, totalCount: 88, totalAmt: 1462000 }
+};
+
 var VENDOR_RATES = {
   "SHIVIL": [
     { label: "Poizon", val: "15.30 + ₹2,000" },
@@ -4596,6 +4610,7 @@ function prep(rows, asOf) {
     if (!r.vendor) r.vendor = vendorOf(r.sheet);
     if (!r.precode) r.precode = "";
     if (!r.barcode) r.barcode = "";
+    if (r.vendor === "SHIVIL" && r.cur === "MIX") r.cur = "INR";
   });
   return rows;
 }
@@ -4873,11 +4888,11 @@ function insights(list, by, keys) {
 }
 function pgOverview() {
   var B = visible(), by = bySheet(B), keys = Object.keys(by).sort(function (a, b) { return by[b].n - by[a].n; });
-  var cnt = count(B), val = sum(B, function (r) { return r.cur === "INR" ? r.amount : 0; }), old = Math.max.apply(null, B.map(function (r) { return r.age; }).concat([0]));
+  var cnt = count(B), val = sum(B, function (r) { return (r.cur === "INR" || r.vendor === "SHIVIL") ? r.amount : 0; }), old = Math.max.apply(null, B.map(function (r) { return r.age; }).concat([0]));
   var o90 = count(B.filter(function (r) { return r.age > 90; })), mixN = count(B.filter(function (r) { return r.cur !== "INR"; }));
   var diff = data.prev === null || data.prev === undefined ? null : count(baseVisible()) - data.prev;
   var oldest = B.slice().sort(function (a, b) { return b.age - a.age || b.amount - a.amount; }).slice(0, 5);
-  var curMonthCost = sum(B, function (r) { return r.cur === "INR" ? r.amount : 0; });
+  var curMonthCost = sum(B, function (r) { return (r.cur === "INR" || r.vendor === "SHIVIL") ? r.amount : 0; });
   function kp(ic, nm, v, chip, cls, kpiKey, chipKpi) {
     var chipHtml = chip ? '<span class="pill ' + cls + '"' + (chipKpi ? ' data-kpi-chip="' + chipKpi + '"' : '') + '>' + chip + '</span>' : '';
     return '<div class="card kpi-card" data-kpi="' + kpiKey + '" tabindex="0" role="button" aria-label="' + esc(nm) + ': click to view orders">' +
@@ -5012,10 +5027,32 @@ function pgVendors() {
     return r.swipe !== false && (!r.status || !/done|delivered|received|swiped/i.test(r.status));
   });
 
-  var totVal = sum(vPool, function (r) { return r.cur === "INR" ? r.amount : 0; });
-  var delayVal = sum(delayPool, function (r) { return r.cur === "INR" ? r.amount : 0; });
+  var isINR = function (r) { return r.cur === "INR" || r.vendor === "SHIVIL" || (r.amount > 0 && r.cur !== "MIX"); };
+  var totVal = sum(vPool, function (r) { return isINR(r) ? (r.amount || 0) : 0; });
+  var delayVal = sum(delayPool, function (r) { return isINR(r) ? (r.amount || 0) : 0; });
   var cancelVal = sum(cancelsAll, function (r) { return r.amount || 0; });
-  var swipeVal = sum(swipePool, function (r) { return r.cur === "INR" ? r.amount : 0; });
+  var swipeVal = sum(swipePool, function (r) { return isINR(r) ? (r.amount || 0) : 0; });
+
+  // Compute lifetime vendor stats (item has barcode OR cancelled; hold & blank status/barcode excluded)
+  var vt = { barcodeCount: 0, barcodeAmt: 0, cancelCount: 0, cancelAmt: 0, holdCount: 0, blankCount: 0, totalCount: 0, totalAmt: 0 };
+  if (st.vsel === "all") {
+    Object.keys(VENDOR_TOTALS).forEach(function (k) {
+      var item = VENDOR_TOTALS[k];
+      vt.barcodeCount += item.barcodeCount;
+      vt.barcodeAmt += item.barcodeAmt;
+      vt.cancelCount += item.cancelCount;
+      vt.cancelAmt += item.cancelAmt;
+      vt.holdCount += item.holdCount;
+      vt.blankCount += item.blankCount;
+      vt.totalCount += item.totalCount;
+      vt.totalAmt += item.totalAmt;
+    });
+  } else if (VENDOR_TOTALS[st.vsel]) {
+    vt = VENDOR_TOTALS[st.vsel];
+  } else {
+    vt.totalCount = count(vPool);
+    vt.totalAmt = totVal;
+  }
 
   // Vendor Rate formulas banner
   var ratesHtml = "";
@@ -5033,6 +5070,42 @@ function pgVendors() {
       }).join("") + '</div></div>';
   }
 
+  // Total Orders Amount (Barcode + Cancelled) Breakdown Card
+  var vendorName = st.vsel === "all" ? "All Vendors" : st.vsel;
+  var totalOrdersCard = '<div class="card" style="margin-bottom:16px;background:var(--soft);border-left:4px solid var(--good);padding:14px 18px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">' +
+      '<div>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<b style="font-size:14px;color:var(--ink)">Total Orders Amount (Barcode + Cancelled): <span style="color:var(--pri)">' + inr(vt.totalAmt) + '</span></b>' +
+          '<span class="pill good" style="font-size:11px">' + vt.totalCount.toLocaleString("en-IN") + ' total orders</span>' +
+        '</div>' +
+        '<div style="font-size:12px;color:var(--mute);margin-top:4px">' +
+          'Counts all fulfilled items with a barcode (' + vt.barcodeCount.toLocaleString("en-IN") + ' orders) or cancelled (' + vt.cancelCount + ' orders). ' +
+          '<span style="color:var(--bad)">Hold (' + vt.holdCount + ')</span> and <span style="color:var(--mute)">Blank status/barcode (' + vt.blankCount + ')</span> are <b>not counted</b>.' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:16px;align-items:center;background:var(--card);padding:8px 14px;border-radius:12px;border:1px solid var(--line)">' +
+        '<div style="text-align:right">' +
+          '<span style="font-size:11px;color:var(--mute);display:block">Has Barcode</span>' +
+          '<b style="color:var(--good);font-size:13px">' + inr(vt.barcodeAmt) + '</b>' +
+          '<small style="display:block;color:var(--mute);font-size:10px">' + vt.barcodeCount.toLocaleString("en-IN") + ' orders</small>' +
+        '</div>' +
+        '<div style="height:28px;width:1px;background:var(--line)"></div>' +
+        '<div style="text-align:right">' +
+          '<span style="font-size:11px;color:var(--mute);display:block">Cancelled</span>' +
+          '<b style="color:var(--bad);font-size:13px">' + inr(vt.cancelAmt) + '</b>' +
+          '<small style="display:block;color:var(--mute);font-size:10px">' + vt.cancelCount + ' orders</small>' +
+        '</div>' +
+        '<div style="height:28px;width:1px;background:var(--line)"></div>' +
+        '<div style="text-align:right">' +
+          '<span style="font-size:11px;color:var(--mute);display:block">Total Fulfilled + Cancel</span>' +
+          '<b style="color:var(--pri);font-size:15px">' + inr(vt.totalAmt) + '</b>' +
+          '<small style="display:block;color:var(--good);font-size:10px">' + vt.totalCount.toLocaleString("en-IN") + ' orders</small>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+
   // Breakdown view: Month or Days bracket (Point 4)
   var breakdownHtml = "";
   if (st.vbd === "month") {
@@ -5041,7 +5114,7 @@ function pgVendors() {
       var ym = (r.date || "").slice(0, 7) || "unknown";
       var it = bMonths[ym] || (bMonths[ym] = { n: 0, v: 0 });
       it.n += r.n || 1;
-      if (r.cur === "INR") it.v += r.amount || 0;
+      if (isINR(r)) it.v += r.amount || 0;
     });
     var mKeys = Object.keys(bMonths).filter(function (k) { return k !== "unknown"; }).sort().reverse();
     breakdownHtml = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0">' +
@@ -5061,14 +5134,14 @@ function pgVendors() {
     ];
     vPool.forEach(function (r) {
       dBrackets[0].n += r.n || 1;
-      if (r.cur === "INR") dBrackets[0].v += r.amount || 0;
-      if (r.age >= 20 && r.age <= 30) { dBrackets[1].n += r.n || 1; if (r.cur === "INR") dBrackets[1].v += r.amount || 0; }
-      if (r.age >= 31 && r.age <= 45) { dBrackets[2].n += r.n || 1; if (r.cur === "INR") dBrackets[2].v += r.amount || 0; }
-      if (r.age >= 46 && r.age <= 90) { dBrackets[3].n += r.n || 1; if (r.cur === "INR") dBrackets[3].v += r.amount || 0; }
-      if (r.age > 90) { dBrackets[4].n += r.n || 1; if (r.cur === "INR") dBrackets[4].v += r.amount || 0; }
+      if (isINR(r)) dBrackets[0].v += r.amount || 0;
+      if (r.age >= 20 && r.age <= 30) { dBrackets[1].n += r.n || 1; if (isINR(r)) dBrackets[1].v += r.amount || 0; }
+      if (r.age >= 31 && r.age <= 45) { dBrackets[2].n += r.n || 1; if (isINR(r)) dBrackets[2].v += r.amount || 0; }
+      if (r.age >= 46 && r.age <= 90) { dBrackets[3].n += r.n || 1; if (isINR(r)) dBrackets[3].v += r.amount || 0; }
+      if (r.age > 90) { dBrackets[4].n += r.n || 1; if (isINR(r)) dBrackets[4].v += r.amount || 0; }
       if (r.age > 25 && (!r.barcode || /no barcode|delay/i.test(r.barcode) || !r.barcode.trim())) {
         dBrackets[5].n += r.n || 1;
-        if (r.cur === "INR") dBrackets[5].v += r.amount || 0;
+        if (isINR(r)) dBrackets[5].v += r.amount || 0;
       }
     });
     breakdownHtml = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0">' +
@@ -5121,22 +5194,32 @@ function pgVendors() {
       return '<button type="button" data-vsel="' + v + '" aria-pressed="' + (st.vsel === v) + '">' + name + ' · ' + vCounts[v] + '</button>';
     }).join("") + '</div>' +
     ratesHtml +
-    '<div class="kpis">' +
-    '<div class="card kpi-card" data-vtab-set="all" tabindex="0" role="button" aria-label="Orders Amount">' +
-      '<div class="k-h"><span>₹ Orders Amount</span><span class="k-act">View &rarr;</span></div>' +
-      '<div class="k-b"><b>' + inr(totVal) + '</b><span class="pill ' + (totVal > 0 ? "good" : "info") + '">' + count(vPool) + ' orders</span></div>' +
+    totalOrdersCard +
+    '<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr))">' +
+    '<div class="card kpi-card" tabindex="0" role="button" aria-label="Total Orders Amount (Barcode + Cancelled)">' +
+      '<div class="k-h"><span>📦 Total Orders Amount</span><span class="k-act">Summary &rarr;</span></div>' +
+      '<div class="k-b"><b>' + inr(vt.totalAmt) + '</b><span class="pill good">' + vt.totalCount.toLocaleString("en-IN") + ' orders</span></div>' +
+      '<div style="font-size:11px;color:var(--mute);margin-top:4px">Barcode + Cancelled (Hold &amp; Blank excluded)</div>' +
+    '</div>' +
+    '<div class="card kpi-card" data-vtab-set="all" tabindex="0" role="button" aria-label="Pending Orders Amount">' +
+      '<div class="k-h"><span>₹ Pending Orders</span><span class="k-act">View &rarr;</span></div>' +
+      '<div class="k-b"><b>' + inr(totVal) + '</b><span class="pill ' + (totVal > 0 ? "good" : "info") + '">' + count(vPool) + ' pending</span></div>' +
+      '<div style="font-size:11px;color:var(--mute);margin-top:4px">Awaiting delivery</div>' +
     '</div>' +
     '<div class="card kpi-card" data-vtab-set="delay" tabindex="0" role="button" aria-label="Delay Orders (>25d without barcode)">' +
       '<div class="k-h"><span>⏱ Delay (>25d no barcode)</span><span class="k-act">View &rarr;</span></div>' +
       '<div class="k-b"><b>' + count(delayPool) + ' orders</b><span class="pill bad">' + inr(delayVal) + '</span></div>' +
+      '<div style="font-size:11px;color:var(--mute);margin-top:4px">No barcode entered</div>' +
     '</div>' +
     '<div class="card kpi-card" data-vtab-set="cancels" tabindex="0" role="button" aria-label="Cancel Orders Amount (Precode only)">' +
       '<div class="k-h"><span>🚫 Cancelled (PRECODE only)</span><span class="k-act">View &rarr;</span></div>' +
       '<div class="k-b"><b>' + inr(cancelVal) + '</b><span class="pill deep">' + count(cancelsAll) + ' cancelled</span></div>' +
+      '<div style="font-size:11px;color:var(--mute);margin-top:4px">SHIVIL &amp; SAMEER with PRECODE</div>' +
     '</div>' +
     '<div class="card kpi-card" data-vtab-set="swipe" tabindex="0" role="button" aria-label="Pending for Swipe">' +
       '<div class="k-h"><span>💳 Pending for Swipe</span><span class="k-act">View &rarr;</span></div>' +
       '<div class="k-b"><b>' + count(swipePool) + ' orders</b><span class="pill warn">' + inr(swipeVal) + '</span></div>' +
+      '<div style="font-size:11px;color:var(--mute);margin-top:4px">Awaiting card swipe</div>' +
     '</div>' +
     '</div>' +
     '<div class="card" style="margin-bottom:16px">' +
@@ -5158,7 +5241,6 @@ function pgVendors() {
       '<div id="tbl">' + tableHtml(baseList, true, st.limit) + '</div>' +
     '</div>' + foot();
 }
-
 
 var VENDOR_SWIPE_RATES = [
   {
