@@ -4845,12 +4845,104 @@ function hl(s) {
   HL.forEach(function (w) { if (w) h = h.replace(new RegExp('(' + esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig'), '<mark>$1</mark>'); });
   return h;
 }
+function formatIsoPretty(iso) {
+  if (!iso || iso.length < 10) return "-";
+  var d = new Date(iso + "T00:00:00Z");
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+function expectedDelivery(orderDate) {
+  if (!orderDate || orderDate.length < 10) return { minIso: "", maxIso: "", label: "21 to 28 days", pretty: "21 to 28 days" };
+  var d = new Date(orderDate + "T00:00:00Z");
+  var minD = new Date(d.getTime() + 21 * 864e5);
+  var maxD = new Date(d.getTime() + 28 * 864e5);
+  var minIso = minD.toISOString().slice(0, 10);
+  var maxIso = maxD.toISOString().slice(0, 10);
+  var minStr = minD.toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
+  var maxStr = maxD.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+  return {
+    minIso: minIso,
+    maxIso: maxIso,
+    pretty: minStr + " - " + maxStr,
+    label: "21 to 28 days (" + minStr + " - " + maxStr + ")"
+  };
+}
+
+function deliveryStatusInfo(r) {
+  var exp = expectedDelivery(r.date);
+  var age = r.age || 0;
+  var isDeliv = (r.barcode && r.barcode !== "No barcode" && r.barcode !== "DELAY" && r.barcode !== "CANCEL") || /deliver|receiv/i.test(r.status);
+  var isCanc = /cancel/i.test(r.status) || /cancel/i.test(r.barcode);
+  
+  if (isCanc) {
+    return { status: "Cancelled", cls: "deep", badge: "Cancelled", timing: "Order cancelled", exp: exp.pretty };
+  }
+  if (isDeliv) {
+    return { status: "Delivered", cls: "good", badge: "Delivered / Has Barcode", timing: "Delivered (Barcode: " + r.barcode + ")", exp: exp.pretty };
+  }
+  if (age < 21) {
+    var rem = 21 - age;
+    return { status: "On Track", cls: "good", badge: "On Track (" + rem + "d to window)", timing: "Expected in " + rem + " to " + (28 - age) + " days (" + exp.pretty + ")", exp: exp.pretty };
+  }
+  if (age <= 28) {
+    return { status: "Due Now", cls: "warn", badge: "Due Now (Day " + age + " of 28)", timing: "In expected delivery window (" + exp.pretty + ")", exp: exp.pretty };
+  }
+  var over = age - 28;
+  return { status: "Delayed", cls: "bad", badge: "Delayed by " + over + " days", timing: "Overdue by " + over + " days (Expected by " + formatIsoPretty(exp.maxIso) + ")", exp: exp.pretty };
+}
+
+function orderUpdateCard(r) {
+  var dInfo = deliveryStatusInfo(r);
+  var exp = expectedDelivery(r.date);
+  var placedStr = formatIsoPretty(r.date);
+  var precodeBadge = r.precode ? '<span class="pill info" style="font-family:monospace;font-size:12px;font-weight:700">📋 ' + esc(r.precode) + '</span>' : '';
+  
+  return '<div class="card" style="margin-bottom:16px;border:1px solid var(--pri);background:var(--card);border-radius:14px;padding:16px 18px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:12px">' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        precodeBadge +
+        '<b style="font-size:15px;color:var(--ink)">' + esc(r.product) + (r.size ? ' <span style="color:var(--mute);font-weight:normal">(' + esc(r.size) + ')</span>' : '') + '</b>' +
+      '</div>' +
+      '<span class="pill ' + dInfo.cls + '" style="font-weight:600">' + esc(dInfo.badge) + '</span>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">' +
+      '<div style="background:var(--soft);padding:10px 14px;border-radius:10px">' +
+        '<span style="font-size:11px;color:var(--mute);display:block;font-weight:500">📅 Order Placed Date</span>' +
+        '<b style="font-size:14px;color:var(--ink)">' + placedStr + '</b>' +
+        '<small style="color:var(--mute);display:block;font-size:11px">' + (r.age ? r.age + ' days ago' : 'Recent') + '</small>' +
+      '</div>' +
+      '<div style="background:var(--soft);padding:10px 14px;border-radius:10px">' +
+        '<span style="font-size:11px;color:var(--mute);display:block;font-weight:500">⏱ Expected Delivery Time</span>' +
+        '<b style="font-size:14px;color:var(--pri)">' + exp.pretty + '</b>' +
+        '<small style="color:var(--mute);display:block;font-size:11px">21 to 28 days turnaround</small>' +
+      '</div>' +
+      '<div style="background:var(--soft);padding:10px 14px;border-radius:10px">' +
+        '<span style="font-size:11px;color:var(--mute);display:block;font-weight:500">🚚 Delivery Timing &amp; Status</span>' +
+        '<b style="font-size:14px;color:var(--ink)">' + esc(dInfo.status) + '</b>' +
+        '<small style="color:var(--' + dInfo.cls + ');display:block;font-size:11px">' + esc(dInfo.timing) + '</small>' +
+      '</div>' +
+      '<div style="background:var(--soft);padding:10px 14px;border-radius:10px">' +
+        '<span style="font-size:11px;color:var(--mute);display:block;font-weight:500">🏢 Vendor &amp; Price</span>' +
+        '<b style="font-size:14px;color:var(--ink)">' + esc(r.vendor || vendorOf(r.sheet)) + ' · ' + esc(money(r)) + '</b>' +
+        '<small style="color:var(--mute);display:block;font-size:11px">' + esc(r.sheet) + ' (' + esc(r.row) + ')' + '</small>' +
+      '</div>' +
+    '</div>' +
+    ((r.barcode || r.note) ? '<div style="margin-top:10px;font-size:12px;color:var(--mute);display:flex;gap:12px;flex-wrap:wrap">' +
+      (r.barcode ? '<span><b>Barcode:</b> <code style="font-family:monospace">' + esc(r.barcode) + '</code></span>' : '') +
+      (r.orderNo ? '<span><b>Order #:</b> <code style="font-family:monospace">' + esc(r.orderNo) + '</code></span>' : '') +
+      (r.tracking ? '<span><b>Tracking:</b> <code style="font-family:monospace">' + esc(r.tracking) + '</code></span>' : '') +
+      (r.note ? '<span><b>Note:</b> ' + esc(r.note) + '</span>' : '') +
+    '</div>' : '') +
+  '</div>';
+}
+
 function rowHtml(r) {
   var precodeBadge = r.precode ? '<span class="pill info" style="cursor:pointer;font-family:monospace;font-size:11px;font-weight:600;margin-top:2px" data-copy-precode="' + esc(r.precode) + '" title="Click to copy PRECODE">📋 ' + hl(r.precode) + '</span>' : '';
   var barcodeBadge = (r.barcode && r.barcode !== "No barcode" && r.barcode !== "DELAY" && r.barcode !== "CANCEL") ? '<small style="color:var(--good);font-family:monospace">Barcode: ' + hl(r.barcode) + '</small>' : '';
-  return '<tr><td>' + pill(r) + '</td><td>' + hl(r.sheet) + '</td><td>' + esc(r.row) + (precodeBadge ? '<br>' + precodeBadge : '') + '</td><td>' + hl(r.product) + (r.size ? '<small>' + hl(r.size) + '</small>' : '') + (r.n > 1 ? '<small>' + r.n + ' rows</small>' : '') + '</td><td>' + esc(r.date) + '</td><td class="num">' + esc(money(r)) + '</td><td>' + (hl(r.orderNo) || '<small>no order no.</small>') + (r.tracking ? '<small>' + hl(r.tracking) + '</small>' : r.canTrack === false ? '' : '<small>no tracking</small>') + '</td><td>' + hl(r.status) + '</td><td class="note">' + hl(r.note || r.barcode || "") + barcodeBadge + '</td></tr>';
+  var exp = expectedDelivery(r.date);
+  var expBadge = (r.date && r.date.length >= 10) ? '<small style="color:var(--pri);font-weight:600" title="Expected delivery window (21 to 28 days)">Exp: ' + exp.pretty + '</small>' : '';
+  return '<tr><td>' + pill(r) + '</td><td>' + hl(r.sheet) + '</td><td>' + esc(r.row) + (precodeBadge ? '<br>' + precodeBadge : '') + '</td><td>' + hl(r.product) + (r.size ? '<small>' + hl(r.size) + '</small>' : '') + (r.n > 1 ? '<small>' + r.n + ' rows</small>' : '') + '</td><td>' + esc(r.date) + expBadge + '</td><td class="num">' + esc(money(r)) + '</td><td>' + (hl(r.orderNo) || '<small>no order no.</small>') + (r.tracking ? '<small>' + hl(r.tracking) + '</small>' : r.canTrack === false ? '' : '<small>no tracking</small>') + '</td><td>' + hl(r.status) + '</td><td class="note">' + hl(r.note || r.barcode || "") + barcodeBadge + '</td></tr>';
 }
-
 function tableHtml(list, sortable, limit) {
   var hs = [["Age", "age"], ["Sheet", "sheet"], ["Row", "row"], ["Product", "product"], ["Order date", "date"], ["Amount", "amount"], ["Order no. and tracking", "order"], ["Status in sheet", "status"], ["Note", ""]];
   var shown = limit ? list.slice(0, limit) : list;
@@ -4889,24 +4981,25 @@ function insights(list, by, keys) {
 function pgOverview() {
   var B = visible(), by = bySheet(B), keys = Object.keys(by).sort(function (a, b) { return by[b].n - by[a].n; });
   var cnt = count(B), val = sum(B, function (r) { return (r.cur === "INR" || r.vendor === "SHIVIL") ? r.amount : 0; }), old = Math.max.apply(null, B.map(function (r) { return r.age; }).concat([0]));
-  var o90 = count(B.filter(function (r) { return r.age > 90; })), mixN = count(B.filter(function (r) { return r.cur !== "INR"; }));
+  var o90 = count(B.filter(function (r) { return r.age > 90; })), mixN = count(B.filter(function (r) { return r.cur !== "INR" && r.vendor !== "SHIVIL"; }));
   var diff = data.prev === null || data.prev === undefined ? null : count(baseVisible()) - data.prev;
   var oldest = B.slice().sort(function (a, b) { return b.age - a.age || b.amount - a.amount; }).slice(0, 5);
   var curMonthCost = sum(B, function (r) { return (r.cur === "INR" || r.vendor === "SHIVIL") ? r.amount : 0; });
   function kp(ic, nm, v, chip, cls, kpiKey, chipKpi) {
     var chipHtml = chip ? '<span class="pill ' + cls + '"' + (chipKpi ? ' data-kpi-chip="' + chipKpi + '"' : '') + '>' + chip + '</span>' : '';
-    return '<div class="card kpi-card" data-kpi="' + kpiKey + '" tabindex="0" role="button" aria-label="' + esc(nm) + ': click to view orders">' +
-      '<div class="k-h"><span>' + ic + ' ' + nm + '</span><span class="k-act">View orders &rarr;</span></div>' +
+    return '<div class="card kpi-card" data-kpi="' + kpiKey + '" tabindex="0" role="button" aria-label="' + esc(nm) + ': click to view">' +
+      '<div class="k-h"><span>' + ic + ' ' + nm + '</span><span class="k-act">View &rarr;</span></div>' +
       '<div class="k-b"><b>' + v + '</b>' + chipHtml + '</div>' +
       '</div>';
   }
   return banner() + '<div class="hello"><div><h1>Welcome back!</h1><p>Here’s what is late today. Counted to ' + esc(data.asOf) + '.</p></div><div class="btns"><button class="btn soft" type="button" data-act="copy">Copy chase list</button><button class="btn pri" type="button" data-act="csv">Export CSV</button></div></div>' +
-    '<div class="kpis">' +
+    '<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(195px,1fr))">' +
     kp("▣", "Pending lines", cnt, diff === null ? keys.length + " sheets" : (diff > 0 ? "+" + diff : diff) + " since last sync", diff > 0 ? "bad" : diff < 0 ? "good" : "info", "pending") +
     kp("₹", "Value at order price", inr(val), mixN ? mixN + " lines not in ₹" : "all in ₹", "good", "value", mixN ? "mix" : "") +
     kp("⏱", "Oldest order", old + " d", "since order", "bad", "oldest") +
     kp("⚠", "Over 90 days", o90, Math.round(o90 / (cnt || 1) * 100) + "% of all", "deep", "o90") +
     kp("₹", "Total order cost / Month", inr(curMonthCost || val), st.month === "all" ? "across all months" : monthLabel(st.month), "good", "monthly_cost") +
+    kp("🚚", "Orders Update", "Delivery Tracker", "Placed & Expected Date", "info", "orders_update") +
     '</div>' +
     '<div class="g3 r1"><div class="card"><div class="head"><div><h2>Pending by order date</h2><div class="sub">When the stuck orders were placed</div></div>' +
     '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
@@ -4920,7 +5013,6 @@ function pgOverview() {
     '<div class="card"><h2>Insights</h2><div class="sub" style="margin-bottom:12px">Worked out from your sheets</div>' + insights(B, by, keys) + '</div></div>' +
     '<div class="card"><div class="head"><div><h2>Oldest pending orders</h2><div class="sub">Chase these first</div></div><button class="link" type="button" data-go="orders">View all</button></div>' + tableHtml(oldest, false) + '</div>' + foot();
 }
-
 function filtersBar() {
   var V = visible();
   var byAll = bySheet(V), keys = Object.keys(byAll).sort(function (a, b) { return byAll[b].n - byAll[a].n; });
@@ -4988,19 +5080,44 @@ function searchRows() {
 }
 
 function searchResultsHtml() {
-  if (!st.sq.trim()) { HL = []; return '<div class="empty">Type a product, size, order number, tracking number or sheet name.<br>Several words narrow the result, for example <b>cloud 6 uk 9</b>.</div>'; }
+  if (!st.sq.trim()) {
+    HL = [];
+    return '<div class="card" style="margin-bottom:16px;background:var(--soft);border-left:4px solid var(--pri);padding:14px 18px">' +
+      '<div style="display:flex;align-items:center;gap:12px">' +
+        '<span style="font-size:24px">🚚</span>' +
+        '<div>' +
+          '<b style="font-size:14px;color:var(--ink)">Orders Update &amp; Delivery Tracking</b>' +
+          '<div style="font-size:12px;color:var(--mute);margin-top:2px">' +
+            'Search any order by <b>PRECODE</b> (e.g. <code>PRE24910</code>), order number, barcode, or product to get its <b>Order Placed Date</b>, <b>Expected Delivery Time (21 to 28 days)</b>, and live delivery status.' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="empty">Type a PRECODE, product, size, order number, or barcode.<br>Example: <b>PRE24910</b> or <b>cloud 6 uk 9</b>.</div>';
+  }
   var L = searchRows();
-  var out = '<div class="sub"><b>' + count(L) + '</b> matching lines' + (L.length ? ', ' + inr(sum(L, function (r) { return r.cur === "INR" ? r.amount : 0; })) + ' at order price' : '') + '</div>' + tableHtml(L, false, 100);
+  
+  // Render prominent Orders Update cards for the top matching orders (up to 3)
+  var updateCards = "";
+  if (L.length > 0) {
+    updateCards = L.slice(0, Math.min(3, L.length)).map(orderUpdateCard).join("");
+  }
+  
+  var out = updateCards +
+    '<div class="sub"><b>' + count(L) + '</b> matching lines' + (L.length ? ', ' + inr(sum(L, function (r) { return (r.cur === "INR" || r.vendor === "SHIVIL") ? (r.amount || 0) : 0; })) + ' at order price' : '') + '</div>' +
+    tableHtml(L, false, 100);
   HL = [];
   return out;
 }
+
 function pgSearch() {
   var sc = [["all", "Everything"], ["precode", "PRECODE & Order no."], ["product", "Product and size"]];
-  return banner() + '<div class="hello"><div><h1>Search</h1><p>Find any pending order. This searches the pending orders loaded from your sheets, not delivered ones.</p></div></div><div class="card">' +
-    '<input class="big-search" id="sq" type="search" placeholder="Search product, size, order no., tracking, sheet…" aria-label="Search orders" value="' + esc(st.sq) + '" autocomplete="off">' +
+  return banner() + '<div class="hello"><div><h1>Search &amp; Orders Update</h1><p>Search any order to check its order placed date, expected delivery time (21 to 28 days), and fulfillment status.</p></div></div><div class="card">' +
+    '<input class="big-search" id="sq" type="search" placeholder="Search PRECODE (e.g. PRE24910), product, size, order no., barcode…" aria-label="Search orders" value="' + esc(st.sq) + '" autocomplete="off">' +
     '<div class="filters">' + sc.map(function (s) { return '<button type="button" data-scope="' + s[0] + '" aria-pressed="' + (st.scope === s[0]) + '">' + s[1] + '</button>'; }).join("") +
     '<label class="chk" style="margin:0;padding:6px 12px"><input type="checkbox" id="sdt"' + (st.sdate ? " checked" : "") + '><span>Only inside the date filter above</span></label></div><div id="sres">' + searchResultsHtml() + '</div></div>' + foot();
 }
+
 function pgVendors() {
   var V = visible();
   var vList = ["all", "SHIVIL", "SAMEER", "GURKIRAT", "CDC / ZENTRA", "SARTHAK", "NAVYA"];
@@ -5578,6 +5695,8 @@ document.addEventListener("click", function (e) {
     return;
   }
   if (t.hasAttribute("data-kpi")) {
+    var kpi = t.getAttribute("data-kpi");
+    if (kpi === "orders_update") { go("search"); var sq1 = sq; if (sq1 && sq1.focus) sq1.focus(); toast("Search any order to get placed date & expected delivery time"); return; }
 
     var kpi = t.getAttribute("data-kpi");
     if (cfg.key) sync(false); // fetch fresh data in background
