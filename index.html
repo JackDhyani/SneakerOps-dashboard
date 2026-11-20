@@ -4550,7 +4550,7 @@ var cfg = (function () {
   return { key: c.key || DEFAULT_KEY, interval: c.interval || DEFAULT_INTERVAL, extras: !!c.extras, theme: c.theme === "light" || c.theme === "dark" ? c.theme : "auto" };
 })();
 function saveCfg() { ls("sneakerops.v2", JSON.stringify(cfg)); }
-var st = { view: "overview", sheet: "all", band: "all", q: "", sk: "age", asc: false, limit: 100, trend: "month", chk: "tracking", month: "all", from: "", to: "", sq: "", scope: "all", sdate: false, rateVendor: "all", rendered: false, vsel: "all", vtab: "all", vbd: "month", vmonth: "all", vband: "all", vq: "", metric: "count" };
+var st = { view: "overview", sheet: "all", band: "all", q: "", sk: "age", asc: false, limit: 100, trend: "month", chk: "tracking", month: "all", from: "", to: "", sq: "", scope: "all", sdate: false, rateVendor: "all", rendered: false, vsel: "all", vtab: "all", vbd: "month", vmonth: "all", vband: "all", vq: "", metric: "count", dismissBanner: false };
 function vendorOf(name) {
   var s = String(name || "").toUpperCase();
   if (s.indexOf("SHIVIL") >= 0) return "SHIVIL";
@@ -4718,7 +4718,7 @@ function updateStatus() {
   var live = data.mode === "live";
   $("dot").className = "dot " + (data.error && !live ? "err" : live ? "live" : "");
   $("modeTxt").textContent = live ? "Live" : "Snapshot";
-  $("srcTxt").textContent = live ? data.sources.filter(function (s) { return s.ok; }).length + "/" + data.sources.length + " sheets" : "31 Oct 2026";
+  $("srcTxt").textContent = live ? data.sources.filter(function (s) { return s.ok; }).length + "/" + data.sources.length + " sheets" : ((typeof formatIsoPretty === "function" ? formatIsoPretty(data.asOf) : data.asOf) || "19 Nov 2026");
   $("lastTxt").textContent = ago(data.syncedAt);
   var left = Math.max(0, Math.round((nextAt - Date.now()) / 1000));
   $("nextTxt").textContent = syncing ? "syncing…" : nextAt ? Math.floor(left / 60) + ":" + ("0" + (left % 60)).slice(-2) : "-";
@@ -4964,9 +4964,27 @@ function checks() {
 }
 function banner() {
   var b = "";
-  if (data.mode === "snapshot") b += '<div class="banner warn"><span><b>Showing a snapshot from 31 Oct 2026.</b> ' + (cfg.key ? "The sheets could not be read yet." : "Add your Google API key in Settings to read the live sheets.") + (data.error ? " " + esc(data.error) : "") + '</span><button class="btn soft" type="button" data-go="settings">Open Settings</button></div>';
-  else if (data.error) b += '<div class="banner bad"><span><b>' + esc(data.error) + '</b></span><button class="btn soft" type="button" data-go="sheets">See which</button></div>';
-  if (data.warnings.length) b += '<div class="banner warn"><span><b>A column may have moved.</b> ' + esc(data.warnings[0]) + (data.warnings.length > 1 ? " (+" + (data.warnings.length - 1) + " more in the Sheets tab)" : "") + '</span></div>';
+  if (st.dismissBanner) return b;
+  var asOfStr = (typeof formatIsoPretty === "function" ? formatIsoPretty(data.asOf) : data.asOf) || "19 Nov 2026";
+  if (data.mode === "snapshot") {
+    b += '<div class="banner warn"><span style="flex:1"><b>Showing offline snapshot from ' + asOfStr + '.</b> ' +
+      (cfg.key ? "The sheets could not be read (" + (data.error ? esc(data.error) : "Google Sheets API access restricted") + "). " : "Add your Google API key in Settings to read live sheets. ") +
+      '</span>' +
+      (cfg.key ? '<button class="btn soft" type="button" data-act="clear" style="margin-right:6px">Use Snapshot</button>' : '') +
+      '<button class="btn soft" type="button" data-go="settings" style="margin-right:6px">Settings</button>' +
+      '<button class="btn soft" type="button" data-act="dismiss-banner" title="Dismiss" aria-label="Dismiss banner" style="padding:4px 9px;font-size:14px;line-height:1">&times;</button>' +
+      '</div>';
+  } else if (data.error) {
+    b += '<div class="banner bad"><span style="flex:1"><b>' + esc(data.error) + '</b></span>' +
+      '<button class="btn soft" type="button" data-go="sheets" style="margin-right:6px">See which</button>' +
+      '<button class="btn soft" type="button" data-act="dismiss-banner" title="Dismiss" aria-label="Dismiss banner" style="padding:4px 9px;font-size:14px;line-height:1">&times;</button>' +
+      '</div>';
+  }
+  if (data.warnings && data.warnings.length) {
+    b += '<div class="banner warn"><span style="flex:1"><b>A column may have moved.</b> ' + esc(data.warnings[0]) + (data.warnings.length > 1 ? " (+" + (data.warnings.length - 1) + " more in the Sheets tab)" : "") + '</span>' +
+      '<button class="btn soft" type="button" data-act="dismiss-banner" title="Dismiss" aria-label="Dismiss banner" style="padding:4px 9px;font-size:14px;line-height:1">&times;</button>' +
+      '</div>';
+  }
   return b;
 }
 function insights(list, by, keys) {
@@ -5536,7 +5554,7 @@ function pgChecks() {
 }
 function pgSettings() {
   return '<div class="hello"><div><h1>Settings</h1><p>Saved in this browser only.</p></div></div><div class="g3" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">' +
-    '<div class="card"><h2>Connect to Google Sheets</h2><div class="sub">Needed once. Without it the dashboard shows the 31 Oct snapshot.</div>' +
+    '<div class="card"><h2>Connect to Google Sheets</h2><div class="sub">Needed once. Without it the dashboard shows the offline snapshot (" + ((typeof formatIsoPretty === "function" ? formatIsoPretty(data.asOf) : data.asOf) || "19 Nov 2026") + ").</div>' +
     '<div class="field"><label for="key">Google API key</label><input id="key" type="password" autocomplete="off" value="' + esc(cfg.key) + '" placeholder="AIza..."><small>Starts with AIza. Stored in this browser. To use one key on every device, paste it into <code>DEFAULT_KEY</code> near the top of index.html.</small></div>' +
     '<div class="field"><label for="iv">Auto sync every</label><select id="iv">' + [5, 10, 15, 30, 60].map(function (m) { return '<option value="' + m + '"' + (cfg.interval === m ? " selected" : "") + '>' + m + ' minutes</option>'; }).join("") + '</select></div>' +
     '<label class="chk"><input type="checkbox" id="ex"' + (cfg.extras ? " checked" : "") + '><span><b>Include other tabs</b><br><small>SAARTHAK, NEHAL and SHIVIL OLD SHEET. They were read earlier with an older filter and may include old, closed orders.</small></span></label>' +
@@ -5545,7 +5563,7 @@ function pgSettings() {
     '<p class="sub">Anyone who has a spreadsheet link can then read it, and the key is visible to anyone who opens this page. The website restriction stops other sites from using it.</p></div></div>' + foot();
 }
 function foot() {
-  return '<div class="foot">Pending means: ordered more than ' + MIN_AGE + ' days ago, no barcode, and not marked received, delivered, cancelled, refunded, on hold, no need or store. ' + (data.mode === "live" ? "Read from Google Sheets " + ago(data.syncedAt) + ", then every " + cfg.interval + " minutes." : "Snapshot from 31 Oct 2026.") + ' Amounts in yuan or mixed currencies are not added to the ₹ totals. Rows marked “not rechecked” come from tabs read with an older filter.</div>';
+  return '<div class="foot">Pending means: ordered more than ' + MIN_AGE + ' days ago, no barcode, and not marked received, delivered, cancelled, refunded, on hold, no need or store. ' + (data.mode === "live" ? "Read from Google Sheets " + ago(data.syncedAt) + ", then every " + cfg.interval + " minutes." : "Snapshot from " + ((typeof formatIsoPretty === "function" ? formatIsoPretty(data.asOf) : data.asOf) || "19 Nov 2026") + ".") + ' Amounts in yuan or mixed currencies are not added to the ₹ totals. Rows marked “not rechecked” come from tabs read with an older filter.</div>';
 }
 
 /* =====================================================================
@@ -5731,7 +5749,8 @@ document.addEventListener("click", function (e) {
     cfg.key = ($("key").value || "").trim(); cfg.interval = +$("iv").value || DEFAULT_INTERVAL; cfg.extras = $("ex").checked; saveCfg();
     st.sheet = "all"; st.band = "all"; toast("Saved"); go("overview"); sync(true); return;
   }
-  if (act === "clear") { cfg.key = ""; saveCfg(); useSnapshot(""); toast("Using the snapshot"); render(); return; }
+  if (act === "dismiss-banner") { st.dismissBanner = true; render(); return; }
+  if (act === "clear") { cfg.key = ""; saveCfg(); useSnapshot(""); toast("Using offline snapshot"); render(); return; }
   if (t.hasAttribute("data-sheet")) { var s = t.getAttribute("data-sheet"); st.sheet = (st.sheet === s && st.view === "orders" && !t.hasAttribute("data-go")) ? "all" : s; st.band = t.hasAttribute("data-band") ? t.getAttribute("data-band") : "all"; st.limit = 100; if (st.view !== "orders") { go("orders"); return; } render(); return; }
   if (t.hasAttribute("data-band")) { var b = t.getAttribute("data-band"); st.band = String(st.band) === b && st.view === "orders" ? "all" : b; if (st.view !== "orders") st.sheet = "all"; st.limit = 100; if (st.view !== "orders") { go("orders"); return; } render(); return; }
   if (t.hasAttribute("data-go")) { go(t.getAttribute("data-go")); }
