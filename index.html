@@ -4422,13 +4422,13 @@ var SOURCES = [
     { name: "GURKIRAT X JACK", id: "1fLCSwjD7ObrIHUvppHNFcycOkIyP-3Dfpas4WX0GUa4", tab: "SWIPE", firstRow: 2, cur: "INR", dateOrder: "dmy",
       cols: { product: "E", size: "F", date: "C", barcode: "B", amount: "H", orderNo: "M", tracking: "N" }, doneCols: ["J", "L", "Q"],
       expect: { B: "barcode", C: "date", E: "style name", H: "in rs" } },
-  { name: "SHIVIL X JACK", id: "12pTuZGQblboa_qhJge82iE0ZnpN5tVfFlJfL_URpkYA", tab: "SWIPE", firstRow: 2, cur: "MIX", dateOrder: "dmy",
-    cols: { product: "G", size: "H", date: "F", barcode: "D", amount: "I", orderNo: "S", tracking: "R" }, doneCols: ["B", "L"],
-    expect: { B: "delivery status", D: "barcode", F: "date", G: "shoe" }, note: "Amount is in yuan or rupees, see the sheet." },
+  { name: "SHIVIL X JACK", id: "12pTuZGQblboa_qhJge82iE0ZnpN5tVfFlJfL_URpkYA", tab: "SWIPE", firstRow: 2, cur: "INR", dateOrder: "dmy",
+    cols: { product: "G", size: "H", date: "F", barcode: "D", amount: "J", orderNo: "S", tracking: "R" }, doneCols: ["B", "L"],
+    expect: { B: "delivery status", D: "barcode", F: "date", G: "shoe" }, note: "Amount strictly picked from IN RUPEES (Amount Checked) column." },
   { name: "CDC X ZENTRA", id: "1qtroH404jZ1KNnOEshHH6jC8iz46HlYZ1QXpZE9ic8o", tab: "SWIPE", firstRow: 2, cur: "INR", dateOrder: "mdy",
-    cols: { product: "M", size: "N", date: "L", barcode: "W", amount: "V", orderNo: "H", tracking: "J" }, doneCols: ["J"], expect: { L: "date", W: "barcode" } },
+    cols: { product: "M", size: "N", date: "L", barcode: "W", amount: "G", orderNo: "H", tracking: "J" }, doneCols: ["J"], expect: { L: "date", W: "barcode" } },
   { name: "CDC X ZENTRA", id: "1qtroH404jZ1KNnOEshHH6jC8iz46HlYZ1QXpZE9ic8o", tab: "SWIPE1", firstRow: 2, cur: "INR", dateOrder: "dmy",
-    cols: { product: "B", size: "M", date: "K", barcode: "U", amount: "F", orderNo: "G", tracking: "I" }, doneCols: ["I"], expect: { U: "barcode" } },
+    cols: { product: "B", size: "M", date: "K", barcode: "U", amount: "G", orderNo: "G", tracking: "I" }, doneCols: ["I"], expect: { U: "barcode" } },
   { name: "SAMEER X JACK", id: "1_IMNTCbwbIx1jsMoot8N9aSpPo7HU-fQtBF2d_vM0f8", tab: "SWIPE", firstRow: 2, cur: "INR", dateOrder: "dmy",
     cols: { product: "G", size: "H", date: "F", barcode: "C", amount: "K", orderNo: "A" }, doneCols: ["N"], expect: { C: "barcode", F: "date" } },
   { name: "SAMEER X JACK", id: "1_IMNTCbwbIx1jsMoot8N9aSpPo7HU-fQtBF2d_vM0f8", tab: "OLD", firstRow: 2, cur: "INR", dateOrder: "dmy",
@@ -4564,7 +4564,7 @@ function vendorOf(name) {
   return "OTHER";
 }
 var VENDOR_TOTALS = {
-  "SHIVIL": { barcodeCount: 14489, barcodeAmt: 292347298, cancelCount: 228, cancelAmt: 3124761, holdCount: 22, blankCount: 842, totalCount: 14717, totalAmt: 295472059 },
+  "SHIVIL": { barcodeCount: 14488, barcodeAmt: 200714537, cancelCount: 228, cancelAmt: 3124761, holdCount: 22, blankCount: 842, totalCount: 14716, totalAmt: 203839298 },
   "SAMEER": { barcodeCount: 3007, barcodeAmt: 33460055, cancelCount: 57, cancelAmt: 628680, holdCount: 1, blankCount: 1702, totalCount: 3064, totalAmt: 34088735 },
   "GURKIRAT": { barcodeCount: 78, barcodeAmt: 1343435, cancelCount: 8, cancelAmt: 126685, holdCount: 0, blankCount: 71, totalCount: 86, totalAmt: 1470120 },
   "CDC / ZENTRA": { barcodeCount: 633, barcodeAmt: 13139670, cancelCount: 68, cancelAmt: 69186, holdCount: 0, blankCount: 626, totalCount: 701, totalAmt: 13208856 },
