@@ -4421,7 +4421,7 @@ var SNAP = {"asOf":"2026-11-19","rows":[{"sheet":"SAMEER X JACK › SWIPE","vend
 var SOURCES = [
     { name: "GURKIRAT X JACK", id: "1fLCSwjD7ObrIHUvppHNFcycOkIyP-3Dfpas4WX0GUa4", tab: "SWIPE", firstRow: 2, cur: "INR", dateOrder: "dmy",
       cols: { product: "E", size: "F", date: "C", barcode: "B", amount: "H", orderNo: "M", tracking: "N" }, doneCols: ["J", "L", "Q"],
-      expect: { B: "barcode", C: "date", E: "style name", H: "in rs" } },
+      expect: { B: "barcode", C: "date", E: "style", H: "in rupees" } },
   { name: "SHIVIL X JACK", id: "12pTuZGQblboa_qhJge82iE0ZnpN5tVfFlJfL_URpkYA", tab: "SWIPE", firstRow: 2, cur: "INR", dateOrder: "dmy",
     cols: { product: "G", size: "H", date: "F", barcode: "D", amount: "J", orderNo: "S", tracking: "R" }, doneCols: ["B", "L"],
     expect: { B: "delivery status", D: "barcode", F: "date", G: "shoe" }, note: "Amount strictly picked from IN RUPEES (Amount Checked) column." },
@@ -4514,7 +4514,14 @@ function transform(src, cols, today) {
   var warnings = [], rows = [], scanned = 0, expect = src.expect || {};
   Object.keys(expect).forEach(function (L) {
     var h = str(get(L, 0)).toLowerCase();
-    if (h.indexOf(expect[L]) < 0) warnings.push("Column " + L + " header is \"" + (str(get(L, 0)) || "empty") + "\", expected something like \"" + expect[L] + "\". Check the column letters in SOURCES.");
+    var exp = (expect[L] || "").toLowerCase();
+    var ok = false;
+    if (/in\s*(rs|rupees)|inr|amount/i.test(exp)) {
+      ok = /in\s*(rupees|rs)|inr|amount|checked/i.test(h);
+    } else {
+      ok = h.indexOf(exp) >= 0;
+    }
+    if (!ok) warnings.push("Column " + L + " header is \"" + (str(get(L, 0)) || "empty") + "\", expected something like \"" + expect[L] + "\". Check the column letters in SOURCES.");
   });
   var len = Math.max.apply(null, Object.keys(cols).map(function (k) { return cols[k].length; }).concat([0]));
   for (var i = src.firstRow - 1; i < len; i++) {
