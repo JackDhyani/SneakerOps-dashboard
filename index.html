@@ -922,6 +922,7 @@ function pgSearch() {
 }
 
 function pgVendors() {
+  function isINR(r) { return r.cur === "INR" || r.vendor === "SHIVIL" || (r.amount > 0 && r.cur !== "MIX"); }
   var V = visible();
   var vList = ["all", "SHIVIL", "SAMEER", "GURKIRAT", "CDC / ZENTRA", "SARTHAK", "NAVYA"];
   var vCounts = {};
@@ -958,7 +959,6 @@ function pgVendors() {
     return r.swipe !== false && (!r.status || !/done|delivered|received|swiped/i.test(r.status));
   });
 
-  var isINR = function (r) { return r.cur === "INR" || r.vendor === "SHIVIL" || (r.amount > 0 && r.cur !== "MIX"); };
   var totVal = sum(vPool, function (r) { return isINR(r) ? (r.amount || 0) : 0; });
   var delayVal = sum(delayPool, function (r) { return isINR(r) ? (r.amount || 0) : 0; });
   var cancelVal = sum(cancelsAll, function (r) { return r.amount || 0; });
